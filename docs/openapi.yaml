@@ -1,0 +1,5466 @@
+openapi: 3.1.0
+info:
+  title: FaceTrack API
+  description: 'FaceTrack attendance system API (requirements §12). Portal: session
+    cookie + CSRF header; integrations: X-API-Key.'
+  version: 1.0.0
+paths:
+  /api/v1/auth/login:
+    post:
+      tags:
+      - auth
+      summary: Sign in
+      description: 'Sets the session cookie (HttpOnly) and a CSRF cookie. 5 failed
+        attempts lock the account;
+
+        requests are rate-limited per client IP (429).'
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_UserProfile_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/auth/logout:
+    post:
+      tags:
+      - auth
+      summary: Sign out
+      operationId: logout
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_NoneType_'
+  /api/v1/auth/me:
+    get:
+      tags:
+      - auth
+      summary: Current user
+      operationId: me
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_UserProfile_'
+  /api/v1/auth/password-reset/request:
+    post:
+      tags:
+      - auth
+      summary: Email a password reset link
+      description: Always answers 202 so the response never reveals whether an email
+        address exists.
+      operationId: request_password_reset
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_NoneType_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/auth/password-reset/confirm:
+    post:
+      tags:
+      - auth
+      summary: Set a new password
+      operationId: confirm_password_reset
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirm'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_NoneType_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users:
+    get:
+      tags:
+      - users
+      summary: List users
+      operationId: list_users
+      parameters:
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 100
+          - type: 'null'
+          title: Search
+      - name: role
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Role
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: sort
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^-?[a-z_]+$
+          - type: 'null'
+          title: Sort
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse_UserOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - users
+      summary: Create a user
+      operationId: create_user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_UserOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users/{user_id}:
+    get:
+      tags:
+      - users
+      summary: Get a user
+      operationId: get_user
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_UserOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - users
+      summary: Update a user
+      operationId: update_user
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: User Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_UserOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - users
+      summary: Delete a user
+      operationId: delete_user
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: User Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/locations:
+    get:
+      tags:
+      - organization
+      summary: List locations
+      operationId: list_locations
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: sort
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^-?[a-z_]+$
+          - type: 'null'
+          title: Sort
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse_LocationOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - organization
+      summary: Create Location
+      operationId: create_location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocationCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_LocationOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/locations/{location_id}:
+    put:
+      tags:
+      - organization
+      summary: Update Location
+      operationId: update_location
+      parameters:
+      - name: location_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Location Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocationUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_LocationOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - organization
+      summary: Delete Location
+      operationId: delete_location
+      parameters:
+      - name: location_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Location Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/departments:
+    get:
+      tags:
+      - organization
+      summary: List departments
+      operationId: list_departments
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: sort
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^-?[a-z_]+$
+          - type: 'null'
+          title: Sort
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse_DepartmentOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - organization
+      summary: Create Department
+      operationId: create_department
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DepartmentCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_DepartmentOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/departments/{department_id}:
+    get:
+      tags:
+      - organization
+      summary: Get Department
+      operationId: get_department
+      parameters:
+      - name: department_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Department Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_DepartmentOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - organization
+      summary: Update Department
+      operationId: update_department
+      parameters:
+      - name: department_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Department Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DepartmentUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_DepartmentOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - organization
+      summary: Delete Department
+      operationId: delete_department
+      parameters:
+      - name: department_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Department Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/shifts:
+    get:
+      tags:
+      - organization
+      summary: List shifts
+      operationId: list_shifts
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: sort
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^-?[a-z_]+$
+          - type: 'null'
+          title: Sort
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse_ShiftOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - organization
+      summary: Create Shift
+      operationId: create_shift
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShiftCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ShiftOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/shifts/{shift_id}:
+    get:
+      tags:
+      - organization
+      summary: Get Shift
+      operationId: get_shift
+      parameters:
+      - name: shift_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Shift Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ShiftOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - organization
+      summary: Update Shift
+      operationId: update_shift
+      parameters:
+      - name: shift_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Shift Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShiftUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ShiftOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - organization
+      summary: Delete Shift
+      operationId: delete_shift
+      parameters:
+      - name: shift_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Shift Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/holidays:
+    get:
+      tags:
+      - organization
+      summary: List holidays
+      operationId: list_holidays
+      parameters:
+      - name: location_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Location Id
+      - name: date_from
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Date From
+      - name: date_to
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Date To
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: sort
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^-?[a-z_]+$
+          - type: 'null'
+          title: Sort
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse_HolidayOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - organization
+      summary: Create Holiday
+      operationId: create_holiday
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HolidayCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_HolidayOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/holidays/{holiday_id}:
+    put:
+      tags:
+      - organization
+      summary: Update Holiday
+      operationId: update_holiday
+      parameters:
+      - name: holiday_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Holiday Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HolidayUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_HolidayOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - organization
+      summary: Delete Holiday
+      operationId: delete_holiday
+      parameters:
+      - name: holiday_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Holiday Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/employees:
+    get:
+      tags:
+      - employees
+      summary: List employees
+      operationId: list_employees
+      parameters:
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 100
+          - type: 'null'
+          title: Search
+      - name: department_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Department Id
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/EmployeeStatus'
+          - type: 'null'
+          title: Status
+      - name: enrolled
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Enrolled
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: sort
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^-?[a-z_]+$
+          - type: 'null'
+          title: Sort
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse_EmployeeOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - employees
+      summary: Create Employee
+      operationId: create_employee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_EmployeeOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/employees/{employee_id}:
+    get:
+      tags:
+      - employees
+      summary: Get an employee
+      operationId: get_employee
+      parameters:
+      - name: employee_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Employee Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_EmployeeOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - employees
+      summary: Update Employee
+      description: Setting status to inactive stops recognition immediately (FR-13).
+      operationId: update_employee
+      parameters:
+      - name: employee_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Employee Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_EmployeeOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - employees
+      summary: Delete an employee and permanently erase their face data
+      description: 'FR-13: the record is soft-deleted (attendance history stays) and
+        all biometric data is hard-deleted.
+
+        `confirm_employee_code` must equal the employee''s code.'
+      operationId: delete_employee
+      parameters:
+      - name: employee_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Employee Id
+      - name: confirm_employee_code
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Confirm Employee Code
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/employees/{employee_id}/biometrics:
+    delete:
+      tags:
+      - employees
+      summary: Erase all face data of an employee (right to erasure)
+      description: 'Super Admin only. Hard-deletes enrollments, photos, embeddings,
+        event snapshots and assigned
+
+        unknown faces, writes an audit entry (without the data) and reloads the gallery.
+        Body must
+
+        confirm the employee code.'
+      operationId: erase_biometrics
+      parameters:
+      - name: employee_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Employee Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BiometricErasure'
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/employees/{employee_id}/faces:
+    get:
+      tags:
+      - employees
+      summary: Face gallery
+      operationId: list_faces
+      parameters:
+      - name: employee_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Employee Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_list_FaceOut__'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - employees
+      summary: Upload enrollment photos (multipart)
+      description: 'FR-8/FR-9: each photo is checked (one face, width >= 112 px, quality,
+        blur) and either stored
+
+        or rejected with a reason. Requires recorded consent (422 otherwise); 503
+        if the engine is down.
+
+        FR-10: `possible_duplicates` lists other employees with a very similar face.'
+      operationId: upload_faces
+      parameters:
+      - name: employee_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Employee Id
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_upload_faces'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_EnrollmentResult_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/employees/{employee_id}/faces/{face_id}:
+    delete:
+      tags:
+      - employees
+      summary: Delete Face
+      operationId: delete_face
+      parameters:
+      - name: employee_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Employee Id
+      - name: face_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Face Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/employees/{employee_id}/faces/{face_id}/image:
+    get:
+      tags:
+      - employees
+      summary: Enrollment photo
+      operationId: face_image
+      parameters:
+      - name: employee_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Employee Id
+      - name: face_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Face Id
+      - name: thumbnail
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Thumbnail
+      responses:
+        '200':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/employees/{employee_id}/photo:
+    get:
+      tags:
+      - employees
+      summary: Best enrollment photo (thumbnail)
+      operationId: employee_photo
+      parameters:
+      - name: employee_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Employee Id
+      responses:
+        '200':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/employees/import:
+    post:
+      tags:
+      - employees
+      summary: Bulk import employees (Excel/CSV) and photos (ZIP named by employee
+        code)
+      description: Runs in the background (202). Poll `GET /jobs/{job_id}` for the
+        per-row result.
+      operationId: import_employees
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_import_employees'
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ImportAccepted_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/leaves:
+    get:
+      tags:
+      - employees
+      summary: List leave
+      operationId: list_leaves
+      parameters:
+      - name: employee_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Employee Id
+      - name: date_from
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Date From
+      - name: date_to
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Date To
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: sort
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^-?[a-z_]+$
+          - type: 'null'
+          title: Sort
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse_LeaveOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - employees
+      summary: Create Leave
+      operationId: create_leave
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_LeaveOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/leaves/{leave_id}:
+    delete:
+      tags:
+      - employees
+      summary: Delete Leave
+      operationId: delete_leave
+      parameters:
+      - name: leave_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Leave Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/cameras:
+    get:
+      tags:
+      - cameras
+      summary: List cameras with live health
+      operationId: list_cameras
+      parameters:
+      - name: location_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Location Id
+      - name: role
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/CameraRole'
+          - type: 'null'
+          title: Role
+      - name: engine_node
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Engine Node
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: sort
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^-?[a-z_]+$
+          - type: 'null'
+          title: Sort
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse_CameraOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - cameras
+      summary: Add a camera
+      description: The RTSP URL (with credentials) is stored AES-256 encrypted and
+        never returned (FR-1, NFR-8).
+      operationId: create_camera
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CameraCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_CameraOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/cameras/{camera_id}:
+    get:
+      tags:
+      - cameras
+      summary: Get Camera
+      operationId: get_camera
+      parameters:
+      - name: camera_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Camera Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_CameraOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - cameras
+      summary: Update Camera
+      operationId: update_camera
+      parameters:
+      - name: camera_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Camera Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CameraUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_CameraOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - cameras
+      summary: Delete Camera
+      operationId: delete_camera
+      parameters:
+      - name: camera_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Camera Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/cameras/{camera_id}/test:
+    post:
+      tags:
+      - cameras
+      summary: Test RTSP and return a snapshot
+      description: FR-2. Returns 503 when the engine is unreachable.
+      operationId: test_camera
+      parameters:
+      - name: camera_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Camera Id
+      - name: use_substream
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Use Substream
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_CameraTestOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/cameras/{camera_id}/live:
+    get:
+      tags:
+      - cameras
+      summary: WebRTC live view URL
+      operationId: live_view
+      parameters:
+      - name: camera_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Camera Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_CameraLiveOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/events:
+    get:
+      tags:
+      - recognition
+      summary: Recognition events
+      operationId: list_events
+      parameters:
+      - name: camera_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Camera Id
+      - name: employee_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Employee Id
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/RecognitionStatus'
+          - type: 'null'
+          title: Status
+      - name: date_from
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Date From
+      - name: date_to
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Date To
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: sort
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^-?[a-z_]+$
+          - type: 'null'
+          title: Sort
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse_EventOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/events/{event_id}/void:
+    post:
+      tags:
+      - recognition
+      summary: Mark a false recognition
+      description: 'FR-28: the event is voided (kept for threshold tuning) and the
+        attendance day is rebuilt without it.'
+      operationId: void_event
+      parameters:
+      - name: event_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Event Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventVoid'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_EventOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/events/{event_id}/snapshot:
+    get:
+      tags:
+      - recognition
+      summary: Event face snapshot
+      description: Allowed for event viewers, and for attendance viewers within their
+        scope (check-in hover).
+      operationId: event_snapshot
+      parameters:
+      - name: event_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Event Id
+      responses:
+        '200':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/unknown-faces:
+    get:
+      tags:
+      - recognition
+      summary: Unknown-face review queue
+      operationId: list_unknown_faces
+      parameters:
+      - name: review_status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/ReviewStatus'
+          - type: 'null'
+          default: pending
+          title: Review Status
+      - name: camera_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Camera Id
+      - name: date_from
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Date From
+      - name: date_to
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Date To
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: sort
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^-?[a-z_]+$
+          - type: 'null'
+          title: Sort
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse_UnknownFaceOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/unknown-faces/{unknown_id}/snapshot:
+    get:
+      tags:
+      - recognition
+      summary: Unknown face snapshot
+      operationId: unknown_snapshot
+      parameters:
+      - name: unknown_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Unknown Id
+      responses:
+        '200':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/unknown-faces/{unknown_id}/assign:
+    post:
+      tags:
+      - recognition
+      summary: Assign an unknown face to an employee
+      description: 'FR-27: creates the attendance sighting; with `add_to_gallery`
+        the snapshot is also enrolled after
+
+        the FR-9 checks (requires consent).'
+      operationId: assign_unknown
+      parameters:
+      - name: unknown_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Unknown Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnknownFaceAssign'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_UnknownFaceAssignResult_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/unknown-faces/{unknown_id}:
+    patch:
+      tags:
+      - recognition
+      summary: Dismiss
+      operationId: update_unknown
+      parameters:
+      - name: unknown_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Unknown Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnknownFaceUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_UnknownFaceOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/attendance:
+    get:
+      tags:
+      - attendance
+      summary: Daily attendance
+      description: HR/Admin see everyone, managers their departments, employees only
+        themselves.
+      operationId: list_attendance
+      parameters:
+      - name: date_from
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Date From
+      - name: date_to
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Date To
+      - name: department_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Department Id
+      - name: employee_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Employee Id
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AttendanceStatus'
+          - type: 'null'
+          title: Status
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: sort
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^-?[a-z_]+$
+          - type: 'null'
+          title: Sort
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse_AttendanceDayOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - attendance
+      summary: Add a manual attendance entry
+      description: 'FR-25: for a day with no record yet. The reason is mandatory and
+        every value is kept as an
+
+        approved correction for the audit trail.'
+      operationId: create_manual_entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualAttendanceCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_AttendanceDayOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/attendance/{day_id}:
+    get:
+      tags:
+      - attendance
+      summary: Get Attendance
+      operationId: get_attendance
+      parameters:
+      - name: day_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Day Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_AttendanceDayOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/attendance/{day_id}/corrections:
+    post:
+      tags:
+      - attendance
+      summary: Request or apply a correction
+      description: Employees request (pending); HR, Admin and the department's manager
+        apply directly (ADR-0004).
+      operationId: correct_attendance
+      parameters:
+      - name: day_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Day Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CorrectionCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_CorrectionResult_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/corrections:
+    get:
+      tags:
+      - attendance
+      summary: Corrections
+      operationId: list_corrections
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/CorrectionStatus'
+          - type: 'null'
+          title: Status
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: sort
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^-?[a-z_]+$
+          - type: 'null'
+          title: Sort
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse_CorrectionOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/corrections/{correction_id}/approve:
+    post:
+      tags:
+      - attendance
+      summary: Approve Correction
+      operationId: approve_correction
+      parameters:
+      - name: correction_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Correction Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CorrectionDecision'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_CorrectionResult_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/corrections/{correction_id}/reject:
+    post:
+      tags:
+      - attendance
+      summary: Reject Correction
+      operationId: reject_correction
+      parameters:
+      - name: correction_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Correction Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CorrectionDecision'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_CorrectionResult_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/dashboard/summary:
+    get:
+      tags:
+      - system
+      summary: Today's counters
+      operationId: dashboard_summary
+      parameters:
+      - name: location_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Location Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_DashboardSummary_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/settings:
+    get:
+      tags:
+      - system
+      summary: System settings
+      operationId: get_settings
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_list_SettingItem__'
+    put:
+      tags:
+      - system
+      summary: Update settings
+      description: 'FR-38. Each key is validated against its definition; secrets are
+        stored encrypted and never
+
+        returned. Recognition/engine changes make the engines re-sync.'
+      operationId: update_settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettingsUpdate'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_list_SettingItem__'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/audit-logs:
+    get:
+      tags:
+      - system
+      summary: Audit trail
+      operationId: list_audit_logs
+      parameters:
+      - name: user_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: User Id
+      - name: action
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Action
+      - name: entity
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entity
+      - name: date_from
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Date From
+      - name: date_to
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Date To
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: sort
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^-?[a-z_]+$
+          - type: 'null'
+          title: Sort
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse_AuditLogOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/jobs/{job_id}:
+    get:
+      tags:
+      - system
+      summary: Background job status
+      operationId: get_job
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_JobOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/jobs/{job_id}/file:
+    get:
+      tags:
+      - system
+      summary: Download a job's output file
+      operationId: get_job_file
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/health:
+    get:
+      tags:
+      - system
+      summary: Liveness and readiness
+      operationId: health
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_dict_str__str__'
+components:
+  schemas:
+    ApiResponse_AttendanceDayOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/AttendanceDayOut'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[AttendanceDayOut]
+    ApiResponse_CameraLiveOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/CameraLiveOut'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[CameraLiveOut]
+    ApiResponse_CameraOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/CameraOut'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[CameraOut]
+    ApiResponse_CameraTestOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/CameraTestOut'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[CameraTestOut]
+    ApiResponse_CorrectionResult_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/CorrectionResult'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[CorrectionResult]
+    ApiResponse_DashboardSummary_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/DashboardSummary'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[DashboardSummary]
+    ApiResponse_DepartmentOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/DepartmentOut'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[DepartmentOut]
+    ApiResponse_EmployeeOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/EmployeeOut'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[EmployeeOut]
+    ApiResponse_EnrollmentResult_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/EnrollmentResult'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[EnrollmentResult]
+    ApiResponse_EventOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/EventOut'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[EventOut]
+    ApiResponse_HolidayOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/HolidayOut'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[HolidayOut]
+    ApiResponse_ImportAccepted_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/ImportAccepted'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[ImportAccepted]
+    ApiResponse_JobOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/JobOut'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[JobOut]
+    ApiResponse_LeaveOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/LeaveOut'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[LeaveOut]
+    ApiResponse_LocationOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/LocationOut'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[LocationOut]
+    ApiResponse_NoneType_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          type: 'null'
+          title: Data
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[NoneType]
+    ApiResponse_ShiftOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/ShiftOut'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[ShiftOut]
+    ApiResponse_UnknownFaceAssignResult_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/UnknownFaceAssignResult'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[UnknownFaceAssignResult]
+    ApiResponse_UnknownFaceOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/UnknownFaceOut'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[UnknownFaceOut]
+    ApiResponse_UserOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/UserOut'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[UserOut]
+    ApiResponse_UserProfile_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/UserProfile'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[UserProfile]
+    ApiResponse_dict_str__str__:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          additionalProperties:
+            type: string
+          type: object
+          title: Data
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[dict[str, str]]
+    ApiResponse_list_FaceOut__:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/FaceOut'
+          type: array
+          title: Data
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[list[FaceOut]]
+    ApiResponse_list_SettingItem__:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/SettingItem'
+          type: array
+          title: Data
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[list[SettingItem]]
+    AttendanceDayOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        employee_id:
+          type: integer
+          title: Employee Id
+        employee_code:
+          type: string
+          title: Employee Code
+        employee_name:
+          type: string
+          title: Employee Name
+        department_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Department Id
+        department_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Department Name
+        work_date:
+          type: string
+          format: date
+          title: Work Date
+        shift_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Shift Id
+        shift_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Shift Name
+        check_in_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Check In At
+        check_out_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Check Out At
+        check_in_event_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Check In Event Id
+        check_out_event_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Check Out Event Id
+        worked_minutes:
+          type: integer
+          title: Worked Minutes
+        late_minutes:
+          type: integer
+          title: Late Minutes
+        early_minutes:
+          type: integer
+          title: Early Minutes
+        overtime_minutes:
+          type: integer
+          title: Overtime Minutes
+        status:
+          anyOf:
+          - $ref: '#/components/schemas/AttendanceStatus'
+          - type: 'null'
+        status_letter:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status Letter
+        is_manual:
+          type: boolean
+          title: Is Manual
+        finalized_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Finalized At
+      type: object
+      required:
+      - id
+      - employee_id
+      - employee_code
+      - employee_name
+      - department_id
+      - department_name
+      - work_date
+      - shift_id
+      - shift_name
+      - check_in_at
+      - check_out_at
+      - check_in_event_id
+      - check_out_event_id
+      - worked_minutes
+      - late_minutes
+      - early_minutes
+      - overtime_minutes
+      - status
+      - status_letter
+      - is_manual
+      - finalized_at
+      title: AttendanceDayOut
+    AttendanceStatus:
+      type: string
+      enum:
+      - present
+      - late
+      - early_exit
+      - half_day
+      - absent
+      - on_leave
+      - holiday
+      - weekly_off
+      - missing_checkout
+      title: AttendanceStatus
+      description: FR-22 daily statuses.
+    AuditLogOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        user_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: User Id
+        user_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User Name
+        action:
+          type: string
+          title: Action
+        entity:
+          type: string
+          title: Entity
+        entity_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entity Id
+        old_values:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Old Values
+        new_values:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: New Values
+        ip:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ip
+        user_agent:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User Agent
+        created_at:
+          type: string
+          title: Created At
+      type: object
+      required:
+      - id
+      - user_id
+      - action
+      - entity
+      - entity_id
+      - old_values
+      - new_values
+      - ip
+      - user_agent
+      - created_at
+      title: AuditLogOut
+    AuthProvider:
+      type: string
+      enum:
+      - local
+      - ldap
+      title: AuthProvider
+    BiometricErasure:
+      properties:
+        confirm_employee_code:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Confirm Employee Code
+      additionalProperties: false
+      type: object
+      required:
+      - confirm_employee_code
+      title: BiometricErasure
+      description: Erasure must be confirmed by typing the employee code (requirements
+        §13).
+    Body_import_employees:
+      properties:
+        sheet:
+          type: string
+          contentMediaType: application/octet-stream
+          title: Sheet
+          description: XLSX or CSV, <= 10 MB
+        photos_zip:
+          anyOf:
+          - type: string
+            contentMediaType: application/octet-stream
+          - type: 'null'
+          title: Photos Zip
+          description: ZIP of <employee_code>/<n>.jpg, <= 200 MB
+      type: object
+      required:
+      - sheet
+      title: Body_import_employees
+    Body_upload_faces:
+      properties:
+        photos:
+          items:
+            type: string
+            contentMediaType: application/octet-stream
+          type: array
+          title: Photos
+          description: JPEG/PNG, <= 5 MB each, 1-10 files
+        source:
+          type: string
+          pattern: ^(upload|webcam)$
+          title: Source
+          default: upload
+      type: object
+      required:
+      - photos
+      title: Body_upload_faces
+    CameraCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+        location_id:
+          type: integer
+          title: Location Id
+        role:
+          $ref: '#/components/schemas/CameraRole'
+        rtsp_url:
+          type: string
+          maxLength: 1024
+          minLength: 8
+          pattern: ^(rtsp|rtsps|file)://\S+$
+          title: Rtsp Url
+        substream_url:
+          anyOf:
+          - type: string
+            maxLength: 1024
+            pattern: ^(rtsp|rtsps|file)://\S+$
+          - type: 'null'
+          title: Substream Url
+        engine_node:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Engine Node
+          default: node-1
+        priority:
+          type: integer
+          maximum: 100.0
+          minimum: 0.0
+          title: Priority
+          default: 0
+        operating_hours:
+          anyOf:
+          - items:
+              additionalProperties: true
+              type: object
+            type: array
+          - type: 'null'
+          title: Operating Hours
+        roi_polygon:
+          anyOf:
+          - items:
+              items:
+                type: number
+              type: array
+            type: array
+          - type: 'null'
+          title: Roi Polygon
+        fps:
+          anyOf:
+          - type: number
+            maximum: 15.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Fps
+        match_threshold:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 1.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Match Threshold
+        liveness_enabled:
+          type: boolean
+          title: Liveness Enabled
+          default: false
+        is_enabled:
+          type: boolean
+          title: Is Enabled
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - location_id
+      - role
+      - rtsp_url
+      title: CameraCreate
+    CameraHealthItem:
+      properties:
+        camera_id:
+          type: integer
+          title: Camera Id
+        name:
+          type: string
+          title: Name
+        status:
+          type: string
+          title: Status
+        mode:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Mode
+        fps_actual:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Fps Actual
+      type: object
+      required:
+      - camera_id
+      - name
+      - status
+      - mode
+      - fps_actual
+      title: CameraHealthItem
+    CameraLiveOut:
+      properties:
+        webrtc_url:
+          type: string
+          title: Webrtc Url
+        token:
+          type: string
+          title: Token
+        expires_at:
+          type: string
+          title: Expires At
+      type: object
+      required:
+      - webrtc_url
+      - token
+      - expires_at
+      title: CameraLiveOut
+    CameraMode:
+      type: string
+      enum:
+      - IDLE
+      - ACTIVE
+      - COOLDOWN
+      - PAUSED
+      title: CameraMode
+      description: Per-camera processing mode (requirements §10.4).
+    CameraOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        name:
+          type: string
+          title: Name
+        location_id:
+          type: integer
+          title: Location Id
+        role:
+          $ref: '#/components/schemas/CameraRole'
+        stream_host:
+          type: string
+          title: Stream Host
+        has_substream:
+          type: boolean
+          title: Has Substream
+        engine_node:
+          type: string
+          title: Engine Node
+        priority:
+          type: integer
+          title: Priority
+        operating_hours:
+          anyOf:
+          - items:
+              additionalProperties: true
+              type: object
+            type: array
+          - type: 'null'
+          title: Operating Hours
+        roi_polygon:
+          anyOf:
+          - items:
+              items:
+                type: number
+              type: array
+            type: array
+          - type: 'null'
+          title: Roi Polygon
+        fps:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Fps
+        match_threshold:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Match Threshold
+        liveness_enabled:
+          type: boolean
+          title: Liveness Enabled
+        is_enabled:
+          type: boolean
+          title: Is Enabled
+        status:
+          $ref: '#/components/schemas/CameraStatus'
+        last_seen_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Seen At
+        runtime:
+          anyOf:
+          - $ref: '#/components/schemas/CameraRuntimeOut'
+          - type: 'null'
+        created_at:
+          type: string
+          title: Created At
+      type: object
+      required:
+      - id
+      - name
+      - location_id
+      - role
+      - stream_host
+      - has_substream
+      - engine_node
+      - priority
+      - operating_hours
+      - roi_polygon
+      - fps
+      - match_threshold
+      - liveness_enabled
+      - is_enabled
+      - status
+      - last_seen_at
+      - created_at
+      title: CameraOut
+    CameraRole:
+      type: string
+      enum:
+      - ENTRY
+      - EXIT
+      - ENTRY_EXIT
+      - GENERAL
+      title: CameraRole
+      description: FR-1 camera roles.
+    CameraRuntimeOut:
+      properties:
+        mode:
+          $ref: '#/components/schemas/CameraMode'
+        connected:
+          type: boolean
+          title: Connected
+        fps_target:
+          type: number
+          title: Fps Target
+        fps_actual:
+          type: number
+          title: Fps Actual
+        lag_seconds:
+          type: number
+          title: Lag Seconds
+        faces_today:
+          type: integer
+          title: Faces Today
+        last_error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Error
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+      type: object
+      required:
+      - mode
+      - connected
+      - fps_target
+      - fps_actual
+      - lag_seconds
+      - faces_today
+      - last_error
+      - updated_at
+      title: CameraRuntimeOut
+    CameraStatus:
+      type: string
+      enum:
+      - unknown
+      - online
+      - offline
+      - disabled
+      title: CameraStatus
+      description: Connection health of a camera as last reported by its engine node
+        (FR-3).
+    CameraTestOut:
+      properties:
+        ok:
+          type: boolean
+          title: Ok
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+        width:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Width
+        height:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Height
+        codec:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Codec
+        snapshot_jpeg_b64:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snapshot Jpeg B64
+      type: object
+      required:
+      - ok
+      - error
+      - width
+      - height
+      - codec
+      - snapshot_jpeg_b64
+      title: CameraTestOut
+    CameraUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 120
+            minLength: 1
+          - type: 'null'
+          title: Name
+        location_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Location Id
+        role:
+          anyOf:
+          - $ref: '#/components/schemas/CameraRole'
+          - type: 'null'
+        rtsp_url:
+          anyOf:
+          - type: string
+            maxLength: 1024
+            pattern: ^(rtsp|rtsps|file)://\S+$
+          - type: 'null'
+          title: Rtsp Url
+        substream_url:
+          anyOf:
+          - type: string
+            maxLength: 1024
+            pattern: ^(rtsp|rtsps|file)://\S+$
+          - type: 'null'
+          title: Substream Url
+        clear_substream:
+          type: boolean
+          title: Clear Substream
+          default: false
+        engine_node:
+          anyOf:
+          - type: string
+            maxLength: 64
+            minLength: 1
+          - type: 'null'
+          title: Engine Node
+        priority:
+          anyOf:
+          - type: integer
+            maximum: 100.0
+            minimum: 0.0
+          - type: 'null'
+          title: Priority
+        operating_hours:
+          anyOf:
+          - items:
+              additionalProperties: true
+              type: object
+            type: array
+          - type: 'null'
+          title: Operating Hours
+        roi_polygon:
+          anyOf:
+          - items:
+              items:
+                type: number
+              type: array
+            type: array
+          - type: 'null'
+          title: Roi Polygon
+        clear_roi:
+          type: boolean
+          title: Clear Roi
+          default: false
+        fps:
+          anyOf:
+          - type: number
+            maximum: 15.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Fps
+        match_threshold:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 1.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Match Threshold
+        liveness_enabled:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Liveness Enabled
+        is_enabled:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Enabled
+      additionalProperties: false
+      type: object
+      title: CameraUpdate
+    CorrectionCreate:
+      properties:
+        field:
+          $ref: '#/components/schemas/CorrectionField'
+        new_value:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: New Value
+        reason:
+          type: string
+          maxLength: 1000
+          minLength: 5
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - field
+      - new_value
+      - reason
+      title: CorrectionCreate
+    CorrectionDecision:
+      properties:
+        comment:
+          anyOf:
+          - type: string
+            maxLength: 1000
+          - type: 'null'
+          title: Comment
+      additionalProperties: false
+      type: object
+      title: CorrectionDecision
+    CorrectionField:
+      type: string
+      enum:
+      - check_in_at
+      - check_out_at
+      - status
+      title: CorrectionField
+      description: Attendance fields that a correction may change (FR-25).
+    CorrectionOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        attendance_day_id:
+          type: integer
+          title: Attendance Day Id
+        employee_id:
+          type: integer
+          title: Employee Id
+        employee_code:
+          type: string
+          title: Employee Code
+        employee_name:
+          type: string
+          title: Employee Name
+        work_date:
+          type: string
+          format: date
+          title: Work Date
+        field:
+          $ref: '#/components/schemas/CorrectionField'
+        old_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Old Value
+        new_value:
+          type: string
+          title: New Value
+        reason:
+          type: string
+          title: Reason
+        status:
+          $ref: '#/components/schemas/CorrectionStatus'
+        requested_by:
+          type: integer
+          title: Requested By
+        requested_by_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Requested By Name
+        approved_by:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Approved By
+        approved_by_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approved By Name
+        approved_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approved At
+        review_comment:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Review Comment
+        created_at:
+          type: string
+          title: Created At
+      type: object
+      required:
+      - id
+      - attendance_day_id
+      - employee_id
+      - employee_code
+      - employee_name
+      - work_date
+      - field
+      - old_value
+      - new_value
+      - reason
+      - status
+      - requested_by
+      - requested_by_name
+      - approved_by
+      - approved_by_name
+      - approved_at
+      - review_comment
+      - created_at
+      title: CorrectionOut
+    CorrectionResult:
+      properties:
+        correction:
+          $ref: '#/components/schemas/CorrectionOut'
+        attendance:
+          $ref: '#/components/schemas/AttendanceDayOut'
+      type: object
+      required:
+      - correction
+      - attendance
+      title: CorrectionResult
+    CorrectionStatus:
+      type: string
+      enum:
+      - pending
+      - approved
+      - rejected
+      title: CorrectionStatus
+    DashboardSummary:
+      properties:
+        work_date:
+          type: string
+          format: date
+          title: Work Date
+        expected:
+          type: integer
+          title: Expected
+        present:
+          type: integer
+          title: Present
+        late:
+          type: integer
+          title: Late
+        absent:
+          type: integer
+          title: Absent
+        on_leave:
+          type: integer
+          title: On Leave
+        in_office_now:
+          type: integer
+          title: In Office Now
+        unknown_today:
+          type: integer
+          title: Unknown Today
+        hourly_arrivals:
+          items:
+            $ref: '#/components/schemas/HourlyCount'
+          type: array
+          title: Hourly Arrivals
+        departments:
+          items:
+            $ref: '#/components/schemas/DepartmentCount'
+          type: array
+          title: Departments
+        cameras:
+          items:
+            $ref: '#/components/schemas/CameraHealthItem'
+          type: array
+          title: Cameras
+        load_levels:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Load Levels
+      type: object
+      required:
+      - work_date
+      - expected
+      - present
+      - late
+      - absent
+      - on_leave
+      - in_office_now
+      - unknown_today
+      - hourly_arrivals
+      - departments
+      - cameras
+      - load_levels
+      title: DashboardSummary
+      description: FR-29 counters for today in the location's timezone.
+    DepartmentCount:
+      properties:
+        department_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Department Id
+        department_name:
+          type: string
+          title: Department Name
+        present:
+          type: integer
+          title: Present
+        absent:
+          type: integer
+          title: Absent
+        late:
+          type: integer
+          title: Late
+      type: object
+      required:
+      - department_id
+      - department_name
+      - present
+      - absent
+      - late
+      title: DepartmentCount
+    DepartmentCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+        code:
+          type: string
+          maxLength: 32
+          minLength: 1
+          pattern: ^[A-Za-z0-9_-]+$
+          title: Code
+        manager_user_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Manager User Id
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - code
+      title: DepartmentCreate
+    DepartmentOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        name:
+          type: string
+          title: Name
+        code:
+          type: string
+          title: Code
+        manager_user_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Manager User Id
+        created_at:
+          type: string
+          title: Created At
+      type: object
+      required:
+      - id
+      - name
+      - code
+      - manager_user_id
+      - created_at
+      title: DepartmentOut
+    DepartmentUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 120
+            minLength: 1
+          - type: 'null'
+          title: Name
+        code:
+          anyOf:
+          - type: string
+            maxLength: 32
+            minLength: 1
+            pattern: ^[A-Za-z0-9_-]+$
+          - type: 'null'
+          title: Code
+        manager_user_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Manager User Id
+      additionalProperties: false
+      type: object
+      title: DepartmentUpdate
+    EmployeeCreate:
+      properties:
+        employee_code:
+          type: string
+          maxLength: 64
+          minLength: 1
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$
+          title: Employee Code
+        full_name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Full Name
+        department_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Department Id
+        designation:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Designation
+        shift_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Shift Id
+        location_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Location Id
+        email:
+          anyOf:
+          - type: string
+            format: email
+          - type: 'null'
+          title: Email
+        phone:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Phone
+        status:
+          $ref: '#/components/schemas/EmployeeStatus'
+          default: active
+        consent_signed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Consent Signed At
+        hr_external_id:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Hr External Id
+      additionalProperties: false
+      type: object
+      required:
+      - employee_code
+      - full_name
+      title: EmployeeCreate
+    EmployeeOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        employee_code:
+          type: string
+          title: Employee Code
+        full_name:
+          type: string
+          title: Full Name
+        department_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Department Id
+        department_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Department Name
+        designation:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Designation
+        shift_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Shift Id
+        shift_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Shift Name
+        location_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Location Id
+        location_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Location Name
+        email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Email
+        phone:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Phone
+        status:
+          $ref: '#/components/schemas/EmployeeStatus'
+        consent_signed_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Consent Signed At
+        deactivated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Deactivated At
+        hr_external_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Hr External Id
+        enrolled_photos:
+          type: integer
+          title: Enrolled Photos
+          default: 0
+        enrollment_complete:
+          type: boolean
+          title: Enrollment Complete
+          default: false
+        created_at:
+          type: string
+          title: Created At
+      type: object
+      required:
+      - id
+      - employee_code
+      - full_name
+      - department_id
+      - designation
+      - shift_id
+      - location_id
+      - email
+      - phone
+      - status
+      - consent_signed_at
+      - deactivated_at
+      - hr_external_id
+      - created_at
+      title: EmployeeOut
+    EmployeeStatus:
+      type: string
+      enum:
+      - active
+      - inactive
+      title: EmployeeStatus
+    EmployeeUpdate:
+      properties:
+        full_name:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+          title: Full Name
+        department_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Department Id
+        designation:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Designation
+        shift_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Shift Id
+        location_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Location Id
+        email:
+          anyOf:
+          - type: string
+            format: email
+          - type: 'null'
+          title: Email
+        phone:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Phone
+        status:
+          anyOf:
+          - $ref: '#/components/schemas/EmployeeStatus'
+          - type: 'null'
+        consent_signed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Consent Signed At
+        hr_external_id:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Hr External Id
+      additionalProperties: false
+      type: object
+      title: EmployeeUpdate
+    EnrollmentResult:
+      properties:
+        results:
+          items:
+            $ref: '#/components/schemas/PhotoResult'
+          type: array
+          title: Results
+        enrolled_photos:
+          type: integer
+          title: Enrolled Photos
+        enrollment_complete:
+          type: boolean
+          title: Enrollment Complete
+      type: object
+      required:
+      - results
+      - enrolled_photos
+      - enrollment_complete
+      title: EnrollmentResult
+    EnrollmentSource:
+      type: string
+      enum:
+      - upload
+      - webcam
+      - review
+      title: EnrollmentSource
+    EventOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        event_uuid:
+          type: string
+          title: Event Uuid
+        camera_id:
+          type: integer
+          title: Camera Id
+        camera_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Camera Name
+        employee_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Employee Id
+        employee_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Employee Code
+        employee_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Employee Name
+        status:
+          $ref: '#/components/schemas/RecognitionStatus'
+        confidence:
+          type: number
+          title: Confidence
+        liveness_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Liveness Score
+        track_id:
+          type: integer
+          title: Track Id
+        captured_at:
+          type: string
+          title: Captured At
+        snapshot_available:
+          type: boolean
+          title: Snapshot Available
+        model_name:
+          type: string
+          title: Model Name
+        void_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Void Reason
+        voided_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Voided At
+      type: object
+      required:
+      - id
+      - event_uuid
+      - camera_id
+      - employee_id
+      - status
+      - confidence
+      - liveness_score
+      - track_id
+      - captured_at
+      - snapshot_available
+      - model_name
+      - void_reason
+      - voided_at
+      title: EventOut
+    EventVoid:
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 3
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - reason
+      title: EventVoid
+    FaceOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        quality_score:
+          type: number
+          title: Quality Score
+        source:
+          $ref: '#/components/schemas/EnrollmentSource'
+        model_name:
+          type: string
+          title: Model Name
+        is_active:
+          type: boolean
+          title: Is Active
+        created_at:
+          type: string
+          title: Created At
+      type: object
+      required:
+      - id
+      - quality_score
+      - source
+      - model_name
+      - is_active
+      - created_at
+      title: FaceOut
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HolidayCreate:
+      properties:
+        location_id:
+          type: integer
+          title: Location Id
+        date:
+          type: string
+          format: date
+          title: Date
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+      additionalProperties: false
+      type: object
+      required:
+      - location_id
+      - date
+      - name
+      title: HolidayCreate
+    HolidayOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        location_id:
+          type: integer
+          title: Location Id
+        date:
+          type: string
+          format: date
+          title: Date
+        name:
+          type: string
+          title: Name
+        created_at:
+          type: string
+          title: Created At
+      type: object
+      required:
+      - id
+      - location_id
+      - date
+      - name
+      - created_at
+      title: HolidayOut
+    HolidayUpdate:
+      properties:
+        date:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Date
+        name:
+          anyOf:
+          - type: string
+            maxLength: 120
+            minLength: 1
+          - type: 'null'
+          title: Name
+      additionalProperties: false
+      type: object
+      title: HolidayUpdate
+    HourlyCount:
+      properties:
+        hour:
+          type: integer
+          title: Hour
+        count:
+          type: integer
+          title: Count
+      type: object
+      required:
+      - hour
+      - count
+      title: HourlyCount
+    ImportAccepted:
+      properties:
+        job_id:
+          type: string
+          title: Job Id
+      type: object
+      required:
+      - job_id
+      title: ImportAccepted
+    JobOut:
+      properties:
+        id:
+          type: string
+          title: Id
+        kind:
+          type: string
+          title: Kind
+        status:
+          type: string
+          enum:
+          - queued
+          - running
+          - succeeded
+          - failed
+          title: Status
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+        result:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Result
+        file_available:
+          type: boolean
+          title: File Available
+          default: false
+        created_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Created At
+      type: object
+      required:
+      - id
+      - kind
+      - status
+      title: JobOut
+    LeaveCreate:
+      properties:
+        employee_id:
+          type: integer
+          title: Employee Id
+        from_date:
+          type: string
+          format: date
+          title: From Date
+        to_date:
+          type: string
+          format: date
+          title: To Date
+        type:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Type
+      additionalProperties: false
+      type: object
+      required:
+      - employee_id
+      - from_date
+      - to_date
+      - type
+      title: LeaveCreate
+    LeaveOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        employee_id:
+          type: integer
+          title: Employee Id
+        from_date:
+          type: string
+          format: date
+          title: From Date
+        to_date:
+          type: string
+          format: date
+          title: To Date
+        type:
+          type: string
+          title: Type
+        source:
+          $ref: '#/components/schemas/LeaveSource'
+        external_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: External Ref
+        created_at:
+          type: string
+          title: Created At
+      type: object
+      required:
+      - id
+      - employee_id
+      - from_date
+      - to_date
+      - type
+      - source
+      - external_ref
+      - created_at
+      title: LeaveOut
+    LeaveSource:
+      type: string
+      enum:
+      - hr
+      - manual
+      title: LeaveSource
+    LocationCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+        address:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Address
+        timezone:
+          type: string
+          title: Timezone
+          default: Asia/Karachi
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      title: LocationCreate
+    LocationOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        name:
+          type: string
+          title: Name
+        address:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Address
+        timezone:
+          type: string
+          title: Timezone
+        created_at:
+          type: string
+          title: Created At
+      type: object
+      required:
+      - id
+      - name
+      - address
+      - timezone
+      - created_at
+      title: LocationOut
+    LocationUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 120
+            minLength: 1
+          - type: 'null'
+          title: Name
+        address:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Address
+        timezone:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Timezone
+      additionalProperties: false
+      type: object
+      title: LocationUpdate
+    LoginRequest:
+      properties:
+        username:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Username
+        password:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Password
+        provider:
+          type: string
+          enum:
+          - local
+          - ldap
+          title: Provider
+          default: local
+      additionalProperties: false
+      type: object
+      required:
+      - username
+      - password
+      title: LoginRequest
+    ManualAttendanceCreate:
+      properties:
+        employee_id:
+          type: integer
+          title: Employee Id
+        work_date:
+          type: string
+          format: date
+          title: Work Date
+        check_in_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Check In At
+        check_out_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Check Out At
+        status:
+          anyOf:
+          - $ref: '#/components/schemas/AttendanceStatus'
+          - type: 'null'
+        reason:
+          type: string
+          maxLength: 1000
+          minLength: 5
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - employee_id
+      - work_date
+      - reason
+      title: ManualAttendanceCreate
+      description: 'FR-25: add an attendance entry manually (HR / manager), with a
+        mandatory reason.'
+    PaginatedResponse_AttendanceDayOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/AttendanceDayOut'
+          type: array
+          title: Data
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      type: object
+      required:
+      - message
+      - data
+      - pagination
+      title: PaginatedResponse[AttendanceDayOut]
+    PaginatedResponse_AuditLogOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/AuditLogOut'
+          type: array
+          title: Data
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      type: object
+      required:
+      - message
+      - data
+      - pagination
+      title: PaginatedResponse[AuditLogOut]
+    PaginatedResponse_CameraOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/CameraOut'
+          type: array
+          title: Data
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      type: object
+      required:
+      - message
+      - data
+      - pagination
+      title: PaginatedResponse[CameraOut]
+    PaginatedResponse_CorrectionOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/CorrectionOut'
+          type: array
+          title: Data
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      type: object
+      required:
+      - message
+      - data
+      - pagination
+      title: PaginatedResponse[CorrectionOut]
+    PaginatedResponse_DepartmentOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/DepartmentOut'
+          type: array
+          title: Data
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      type: object
+      required:
+      - message
+      - data
+      - pagination
+      title: PaginatedResponse[DepartmentOut]
+    PaginatedResponse_EmployeeOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/EmployeeOut'
+          type: array
+          title: Data
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      type: object
+      required:
+      - message
+      - data
+      - pagination
+      title: PaginatedResponse[EmployeeOut]
+    PaginatedResponse_EventOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/EventOut'
+          type: array
+          title: Data
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      type: object
+      required:
+      - message
+      - data
+      - pagination
+      title: PaginatedResponse[EventOut]
+    PaginatedResponse_HolidayOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/HolidayOut'
+          type: array
+          title: Data
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      type: object
+      required:
+      - message
+      - data
+      - pagination
+      title: PaginatedResponse[HolidayOut]
+    PaginatedResponse_LeaveOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/LeaveOut'
+          type: array
+          title: Data
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      type: object
+      required:
+      - message
+      - data
+      - pagination
+      title: PaginatedResponse[LeaveOut]
+    PaginatedResponse_LocationOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/LocationOut'
+          type: array
+          title: Data
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      type: object
+      required:
+      - message
+      - data
+      - pagination
+      title: PaginatedResponse[LocationOut]
+    PaginatedResponse_ShiftOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/ShiftOut'
+          type: array
+          title: Data
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      type: object
+      required:
+      - message
+      - data
+      - pagination
+      title: PaginatedResponse[ShiftOut]
+    PaginatedResponse_UnknownFaceOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/UnknownFaceOut'
+          type: array
+          title: Data
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      type: object
+      required:
+      - message
+      - data
+      - pagination
+      title: PaginatedResponse[UnknownFaceOut]
+    PaginatedResponse_UserOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/UserOut'
+          type: array
+          title: Data
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      type: object
+      required:
+      - message
+      - data
+      - pagination
+      title: PaginatedResponse[UserOut]
+    Pagination:
+      properties:
+        page:
+          type: integer
+          minimum: 1.0
+          title: Page
+        page_size:
+          type: integer
+          minimum: 1.0
+          title: Page Size
+        total:
+          type: integer
+          minimum: 0.0
+          title: Total
+      type: object
+      required:
+      - page
+      - page_size
+      - total
+      title: Pagination
+    PasswordResetConfirm:
+      properties:
+        token:
+          type: string
+          maxLength: 2048
+          minLength: 10
+          title: Token
+        new_password:
+          type: string
+          maxLength: 256
+          minLength: 10
+          title: New Password
+      additionalProperties: false
+      type: object
+      required:
+      - token
+      - new_password
+      title: PasswordResetConfirm
+    PasswordResetRequest:
+      properties:
+        email:
+          type: string
+          format: email
+          title: Email
+      additionalProperties: false
+      type: object
+      required:
+      - email
+      title: PasswordResetRequest
+    PhotoResult:
+      properties:
+        filename:
+          type: string
+          title: Filename
+        accepted:
+          type: boolean
+          title: Accepted
+        rejection_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rejection Reason
+        face_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Face Id
+        quality_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Quality Score
+        face_width_px:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Face Width Px
+        possible_duplicates:
+          items:
+            type: string
+          type: array
+          title: Possible Duplicates
+      type: object
+      required:
+      - filename
+      - accepted
+      title: PhotoResult
+    RecognitionStatus:
+      type: string
+      enum:
+      - recognized
+      - unknown
+      - voided
+      title: RecognitionStatus
+      description: Status of a stored recognition event (§11). The engine only emits
+        RECOGNIZED or UNKNOWN.
+    ReviewStatus:
+      type: string
+      enum:
+      - pending
+      - assigned
+      - dismissed
+      title: ReviewStatus
+      description: Review state of an unknown face (FR-27).
+    SettingItem:
+      properties:
+        key:
+          type: string
+          title: Key
+        group:
+          type: string
+          title: Group
+        value:
+          title: Value
+        default:
+          title: Default
+        description:
+          type: string
+          title: Description
+        secret:
+          type: boolean
+          title: Secret
+        is_set:
+          type: boolean
+          title: Is Set
+      type: object
+      required:
+      - key
+      - group
+      - value
+      - default
+      - description
+      - secret
+      - is_set
+      title: SettingItem
+    SettingsUpdate:
+      properties:
+        values:
+          additionalProperties: true
+          type: object
+          minProperties: 1
+          title: Values
+      additionalProperties: false
+      type: object
+      required:
+      - values
+      title: SettingsUpdate
+      description: Only the keys to change. Secret values sent back as the mask are
+        left unchanged.
+    ShiftCreate:
+      properties:
+        grace_in_min:
+          type: integer
+          maximum: 240.0
+          minimum: 0.0
+          title: Grace In Min
+          default: 15
+        grace_out_min:
+          type: integer
+          maximum: 240.0
+          minimum: 0.0
+          title: Grace Out Min
+          default: 15
+        half_day_pct:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Half Day Pct
+          default: 50
+        is_night_shift:
+          type: boolean
+          title: Is Night Shift
+          default: false
+        weekly_offs:
+          items:
+            type: integer
+          type: array
+          maxItems: 7
+          title: Weekly Offs
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+        start_time:
+          type: string
+          format: time
+          title: Start Time
+        end_time:
+          type: string
+          format: time
+          title: End Time
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - start_time
+      - end_time
+      title: ShiftCreate
+    ShiftOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        name:
+          type: string
+          title: Name
+        start_time:
+          type: string
+          format: time
+          title: Start Time
+        end_time:
+          type: string
+          format: time
+          title: End Time
+        grace_in_min:
+          type: integer
+          title: Grace In Min
+        grace_out_min:
+          type: integer
+          title: Grace Out Min
+        half_day_pct:
+          type: integer
+          title: Half Day Pct
+        is_night_shift:
+          type: boolean
+          title: Is Night Shift
+        weekly_offs:
+          items:
+            type: integer
+          type: array
+          title: Weekly Offs
+        created_at:
+          type: string
+          title: Created At
+      type: object
+      required:
+      - id
+      - name
+      - start_time
+      - end_time
+      - grace_in_min
+      - grace_out_min
+      - half_day_pct
+      - is_night_shift
+      - weekly_offs
+      - created_at
+      title: ShiftOut
+    ShiftUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 120
+            minLength: 1
+          - type: 'null'
+          title: Name
+        start_time:
+          anyOf:
+          - type: string
+            format: time
+          - type: 'null'
+          title: Start Time
+        end_time:
+          anyOf:
+          - type: string
+            format: time
+          - type: 'null'
+          title: End Time
+        grace_in_min:
+          anyOf:
+          - type: integer
+            maximum: 240.0
+            minimum: 0.0
+          - type: 'null'
+          title: Grace In Min
+        grace_out_min:
+          anyOf:
+          - type: integer
+            maximum: 240.0
+            minimum: 0.0
+          - type: 'null'
+          title: Grace Out Min
+        half_day_pct:
+          anyOf:
+          - type: integer
+            maximum: 100.0
+            minimum: 1.0
+          - type: 'null'
+          title: Half Day Pct
+        is_night_shift:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Night Shift
+        weekly_offs:
+          anyOf:
+          - items:
+              type: integer
+            type: array
+          - type: 'null'
+          title: Weekly Offs
+      additionalProperties: false
+      type: object
+      title: ShiftUpdate
+    UnknownFaceAssign:
+      properties:
+        employee_id:
+          type: integer
+          title: Employee Id
+        add_to_gallery:
+          type: boolean
+          title: Add To Gallery
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - employee_id
+      title: UnknownFaceAssign
+    UnknownFaceAssignResult:
+      properties:
+        unknown_face:
+          $ref: '#/components/schemas/UnknownFaceOut'
+        attendance_updated:
+          type: boolean
+          title: Attendance Updated
+        added_to_gallery:
+          type: boolean
+          title: Added To Gallery
+        gallery_rejection_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Gallery Rejection Reason
+      type: object
+      required:
+      - unknown_face
+      - attendance_updated
+      - added_to_gallery
+      title: UnknownFaceAssignResult
+    UnknownFaceOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        recognition_event_id:
+          type: integer
+          title: Recognition Event Id
+        captured_at:
+          type: string
+          title: Captured At
+        camera_id:
+          type: integer
+          title: Camera Id
+        camera_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Camera Name
+        liveness_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Liveness Score
+        review_status:
+          $ref: '#/components/schemas/ReviewStatus'
+        assigned_employee_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Assigned Employee Id
+        reviewed_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reviewed At
+        snapshot_available:
+          type: boolean
+          title: Snapshot Available
+        group_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Group Id
+      type: object
+      required:
+      - id
+      - recognition_event_id
+      - captured_at
+      - camera_id
+      - liveness_score
+      - review_status
+      - assigned_employee_id
+      - reviewed_at
+      - snapshot_available
+      title: UnknownFaceOut
+    UnknownFaceUpdate:
+      properties:
+        review_status:
+          type: string
+          const: dismissed
+          title: Review Status
+      additionalProperties: false
+      type: object
+      required:
+      - review_status
+      title: UnknownFaceUpdate
+    UserCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Name
+        username:
+          type: string
+          maxLength: 120
+          minLength: 3
+          pattern: ^[A-Za-z0-9._@-]+$
+          title: Username
+        email:
+          type: string
+          format: email
+          title: Email
+        role:
+          $ref: '#/components/schemas/UserRole'
+        auth_provider:
+          $ref: '#/components/schemas/AuthProvider'
+          default: local
+        employee_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Employee Id
+        password:
+          anyOf:
+          - type: string
+            maxLength: 256
+            minLength: 10
+          - type: 'null'
+          title: Password
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - username
+      - email
+      - role
+      title: UserCreate
+    UserOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        name:
+          type: string
+          title: Name
+        username:
+          type: string
+          title: Username
+        email:
+          type: string
+          title: Email
+        role:
+          $ref: '#/components/schemas/UserRole'
+        auth_provider:
+          $ref: '#/components/schemas/AuthProvider'
+        employee_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Employee Id
+        is_active:
+          type: boolean
+          title: Is Active
+        is_locked:
+          type: boolean
+          title: Is Locked
+          default: false
+        last_login_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Login At
+        created_at:
+          type: string
+          title: Created At
+      type: object
+      required:
+      - id
+      - name
+      - username
+      - email
+      - role
+      - auth_provider
+      - employee_id
+      - is_active
+      - last_login_at
+      - created_at
+      title: UserOut
+    UserProfile:
+      properties:
+        id:
+          type: integer
+          title: Id
+        name:
+          type: string
+          title: Name
+        username:
+          type: string
+          title: Username
+        email:
+          type: string
+          title: Email
+        role:
+          $ref: '#/components/schemas/UserRole'
+        employee_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Employee Id
+        permissions:
+          items:
+            type: string
+          type: array
+          title: Permissions
+        last_login_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Login At
+        session_expires_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Session Expires At
+      type: object
+      required:
+      - id
+      - name
+      - username
+      - email
+      - role
+      - employee_id
+      - permissions
+      - last_login_at
+      title: UserProfile
+    UserRole:
+      type: string
+      enum:
+      - super_admin
+      - hr_admin
+      - department_manager
+      - operator
+      - employee
+      title: UserRole
+      description: The five roles of requirements §4.
+    UserUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+          title: Name
+        email:
+          anyOf:
+          - type: string
+            format: email
+          - type: 'null'
+          title: Email
+        role:
+          anyOf:
+          - $ref: '#/components/schemas/UserRole'
+          - type: 'null'
+        employee_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Employee Id
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+        password:
+          anyOf:
+          - type: string
+            maxLength: 256
+            minLength: 10
+          - type: 'null'
+          title: Password
+        unlock:
+          type: boolean
+          title: Unlock
+          default: false
+      additionalProperties: false
+      type: object
+      title: UserUpdate
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
