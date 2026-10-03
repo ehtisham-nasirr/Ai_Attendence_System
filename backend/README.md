@@ -58,6 +58,8 @@ The rules are in `domain/attendance/rules.py`; the decisions behind them are in 
   - Order: Manual > Leave > Holiday/Weekly Off > Absent > Missing Check-out > Half Day > Late > Early Exit > Present.
   - Before the day closes, only Present or Late is shown.
 - **Corrections:** an approved correction locks its field, so later events never overwrite it.
+- **Leave and holidays:** adding or removing leave recomputes that employee's existing days in the range; a holiday change queues `recompute_date` for each affected date (Q41).
+- **Monthly register:** `GET /attendance/register?month=YYYY-MM` returns status letters and row totals per employee in the caller's scope (Q40).
 - **Approver:** a correction request is approved by one of the employee's department manager, an HR Admin or a Super Admin (ADR-0004).
 
 ## Security (§15, standards/06)

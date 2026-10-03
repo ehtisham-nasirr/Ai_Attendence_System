@@ -24,6 +24,13 @@ class UserProfile(ApiModel):
     permissions: list[str]
     last_login_at: UtcDateTime | None
     session_expires_at: UtcDateTime | None = None
+    timezone: str = Field(description="IANA timezone the portal shows times in (setting general.timezone)")
+
+
+class AuthOptions(ApiModel):
+    """What the sign-in page may offer; contains no user data."""
+
+    ldap_enabled: bool
 
 
 class PasswordResetRequest(InputModel):

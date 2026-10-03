@@ -87,3 +87,24 @@ class CorrectionOut(ApiModel):
 class CorrectionResult(ApiModel):
     correction: CorrectionOut
     attendance: AttendanceDayOut
+
+
+class RegisterDay(ApiModel):
+    work_date: dt.date
+    status: AttendanceStatus | None
+    letter: str | None
+    is_manual: bool
+
+
+class RegisterRow(ApiModel):
+    """One employee's month (§13 screen 8): a cell per day with a record, totals per status letter."""
+
+    employee_id: int
+    employee_code: str
+    employee_name: str
+    department_name: str | None
+    days: list[RegisterDay]
+    totals: dict[str, int]
+    worked_minutes: int
+    late_minutes: int
+    overtime_minutes: int

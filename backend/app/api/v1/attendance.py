@@ -6,11 +6,12 @@ from typing import Annotated
 from facetrack_common.constants import AttendanceStatus, CorrectionStatus
 from facetrack_common.models import User
 from facetrack_common.schemas.envelope import ApiResponse, PaginatedResponse
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Query, status
 
 from app.api.deps import DbDep, PageDep, ScopeDep
 from app.core.responses import created, ok, paginated
 from app.core.security import CurrentUser, Permission, require_permission
+from app.domain.attendance import register as register_service
 from app.domain.attendance import service as attendance_service
 from app.domain.corrections import service as correction_service
 from app.repositories import attendance_repo
@@ -21,6 +22,7 @@ from app.schemas.attendance import (
     CorrectionOut,
     CorrectionResult,
     ManualAttendanceCreate,
+    RegisterRow,
 )
 
 router = APIRouter(tags=["attendance"])
@@ -58,6 +60,25 @@ async def list_attendance(
         total,
         "Attendance retrieved.",
     )
+
+
+@router.get(
+    "/attendance/register",
+    response_model=PaginatedResponse[RegisterRow],
+    summary="Monthly attendance register",
+)
+async def monthly_register(
+    db: DbDep,
+    page: PageDep,
+    scope: ScopeDep,
+    _: Viewer,
+    month: Annotated[str, Query(pattern=r"^\d{4}-\d{2}$", description="YYYY-MM")],
+    department_id: int | None = None,
+    search: Annotated[str | None, Query(max_length=100)] = None,
+) -> PaginatedResponse[RegisterRow]:
+    """§13 screen 8: one row per employee in scope with a status letter per recorded day."""
+    rows, total = await register_service.monthly_register(db, page, scope, month, department_id, search)
+    return paginated(rows, page.page, page.page_size, total, "Register retrieved.")
 
 
 @router.get("/attendance/{day_id}", response_model=ApiResponse[AttendanceDayOut])

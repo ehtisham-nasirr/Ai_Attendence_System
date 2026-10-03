@@ -21,6 +21,7 @@ from app.schemas.organization import (
     ShiftCreate,
     ShiftUpdate,
 )
+from app.worker.dispatch import recompute_attendance_date
 
 
 def _changes(payload: BaseModel) -> dict[str, Any]:
@@ -159,6 +160,7 @@ async def create_holiday(db: AsyncSession, payload: HolidayCreate, actor: User) 
         db.add(holiday)
         await db.flush()
         await audit.record(db, actor, "holiday.create", "holiday", holiday.id, new=payload.model_dump())
+    recompute_attendance_date(payload.date.isoformat())
     return holiday
 
 
@@ -172,6 +174,8 @@ async def update_holiday(db: AsyncSession, holiday_id: int, payload: HolidayUpda
             raise Conflict("A holiday already exists on this date for this location.")
         old = apply_changes(holiday, changes)
         await audit.record(db, actor, "holiday.update", "holiday", holiday_id, old=old, new=changes)
+    for affected in {holiday.date, old.get("date", holiday.date)}:
+        recompute_attendance_date(affected.isoformat())
     return holiday
 
 
@@ -180,3 +184,4 @@ async def delete_holiday(db: AsyncSession, holiday_id: int, actor: User) -> None
         holiday = await _get_or_404(db, Holiday, holiday_id, "Holiday")
         soft_delete(holiday)
         await audit.record(db, actor, "holiday.delete", "holiday", holiday_id)
+    recompute_attendance_date(holiday.date.isoformat())

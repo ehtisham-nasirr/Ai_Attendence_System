@@ -21,3 +21,8 @@ def start_report_export(
     job_id: str, report_type: str, params: dict[str, Any], fmt: str, actor_id: int
 ) -> None:
     _send("app.worker.tasks.reports.export_report", job_id, report_type, params, fmt, actor_id)
+
+
+def recompute_attendance_date(work_date: str) -> None:
+    """Re-runs the rules for every existing day on a date (after a holiday changed)."""
+    _send("app.worker.tasks.attendance.recompute_date", work_date)

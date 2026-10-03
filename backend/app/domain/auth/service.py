@@ -31,7 +31,7 @@ _INVALID = "Invalid username or password."
 _RESET_MINUTES = 30
 
 
-def profile(user: User, expires: datetime | None = None) -> UserProfile:
+def profile(user: User, timezone: str, expires: datetime | None = None) -> UserProfile:
     return UserProfile(
         id=user.id,
         name=user.name,
@@ -42,6 +42,7 @@ def profile(user: User, expires: datetime | None = None) -> UserProfile:
         permissions=sorted(p.value for p in permissions_for(user.role)),
         last_login_at=user.last_login_at,
         session_expires_at=expires,
+        timezone=timezone,
     )
 
 

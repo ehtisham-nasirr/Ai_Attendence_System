@@ -1,10 +1,10 @@
 """Attendance days and corrections."""
 
-from datetime import date
+from datetime import UTC, date, datetime, time, timedelta
 
 from facetrack_common.constants import AttendanceStatus, CorrectionField, CorrectionStatus
 from facetrack_common.models import AttendanceCorrection, AttendanceDay, Employee
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -200,3 +200,51 @@ async def list_corrections(
         AttendanceCorrection.id,
     )
     return await fetch_page(db, sort, params)
+
+
+async def register_employees(
+    db: AsyncSession,
+    params: PageParams,
+    scope: DataScope,
+    *,
+    month_start: date,
+    month_end: date,
+    department_id: int | None,
+    search: str | None,
+) -> tuple[list[Employee], int]:
+    """Employees shown in a monthly register: in scope, existing during the month, by code."""
+    starts = datetime.combine(month_start, time.min, tzinfo=UTC) - timedelta(days=1)
+    ends = datetime.combine(month_end, time.max, tzinfo=UTC) + timedelta(days=1)
+    stmt = (
+        select(Employee)
+        .options(selectinload(Employee.department))
+        .where(
+            Employee.deleted_at.is_(None),
+            Employee.created_at <= ends,
+            or_(Employee.deactivated_at.is_(None), Employee.deactivated_at >= starts),
+        )
+    )
+    stmt = scope_filter(stmt, scope)
+    if department_id:
+        stmt = stmt.where(Employee.department_id == department_id)
+    if search:
+        like = f"%{search.lower()}%"
+        stmt = stmt.where(
+            or_(func.lower(Employee.full_name).like(like), func.lower(Employee.employee_code).like(like))
+        )
+    return await fetch_page(db, stmt.order_by(Employee.employee_code), params)
+
+
+async def days_between(
+    db: AsyncSession, employee_ids: list[int], date_from: date, date_to: date
+) -> list[AttendanceDay]:
+    if not employee_ids:
+        return []
+    rows = await db.scalars(
+        select(AttendanceDay).where(
+            AttendanceDay.employee_id.in_(employee_ids),
+            AttendanceDay.work_date >= date_from,
+            AttendanceDay.work_date <= date_to,
+        )
+    )
+    return list(rows)

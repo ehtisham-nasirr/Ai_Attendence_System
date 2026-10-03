@@ -19,8 +19,15 @@ from app.core.security import (
     set_session_cookies,
 )
 from app.domain.auth import service as auth_service
+from app.domain.settings import service as settings_service
 from app.repositories import user_repo
-from app.schemas.auth import LoginRequest, PasswordResetConfirm, PasswordResetRequest, UserProfile
+from app.schemas.auth import (
+    AuthOptions,
+    LoginRequest,
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    UserProfile,
+)
 from app.services import directory
 from app.worker.dispatch import send_password_reset_email
 
@@ -38,7 +45,8 @@ async def login(payload: LoginRequest, response: Response, db: DbDep) -> ApiResp
     )
     token, expires = issue_access_token(user, settings)
     set_session_cookies(response, token, expires, settings)
-    return ok(auth_service.profile(user, expires), "Signed in.")
+    timezone = str((await settings_service.resolved(db))["general.timezone"])
+    return ok(auth_service.profile(user, timezone, expires), "Signed in.")
 
 
 @router.post("/logout", response_model=ApiResponse[None], summary="Sign out")
@@ -51,8 +59,16 @@ async def logout(request: Request, response: Response, user: CurrentUser) -> Api
 
 
 @router.get("/me", response_model=ApiResponse[UserProfile], summary="Current user")
-async def me(user: CurrentUser) -> ApiResponse[UserProfile]:
-    return ok(auth_service.profile(user), "Current user.")
+async def me(user: CurrentUser, db: DbDep) -> ApiResponse[UserProfile]:
+    timezone = str((await settings_service.resolved(db))["general.timezone"])
+    return ok(auth_service.profile(user, timezone), "Current user.")
+
+
+@router.get("/options", response_model=ApiResponse[AuthOptions], summary="Sign-in options")
+async def auth_options(db: DbDep) -> ApiResponse[AuthOptions]:
+    """Public: lets the sign-in page show "Sign in with Active Directory" only when it is enabled."""
+    values = await settings_service.resolved(db)
+    return ok(AuthOptions(ldap_enabled=bool(values["auth.ldap_enabled"])), "Sign-in options.")
 
 
 @router.post(

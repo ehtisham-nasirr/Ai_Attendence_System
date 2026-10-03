@@ -60,6 +60,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponse_UserProfile_'
+  /api/v1/auth/options:
+    get:
+      tags:
+      - auth
+      summary: Sign-in options
+      description: 'Public: lets the sign-in page show "Sign in with Active Directory"
+        only when it is enabled.'
+      operationId: auth_options
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_AuthOptions_'
   /api/v1/auth/password-reset/request:
     post:
       tags:
@@ -2048,6 +2063,81 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/attendance/register:
+    get:
+      tags:
+      - attendance
+      summary: Monthly attendance register
+      description: '§13 screen 8: one row per employee in scope with a status letter
+        per recorded day.'
+      operationId: monthly_register
+      parameters:
+      - name: month
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^\d{4}-\d{2}$
+          description: YYYY-MM
+          title: Month
+        description: YYYY-MM
+      - name: department_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Department Id
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 100
+          - type: 'null'
+          title: Search
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: sort
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^-?[a-z_]+$
+          - type: 'null'
+          title: Sort
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse_RegisterRow_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/attendance/{day_id}:
     get:
       tags:
@@ -2464,6 +2554,22 @@ components:
       - message
       - data
       title: ApiResponse[AttendanceDayOut]
+    ApiResponse_AuthOptions_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/AuthOptions'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[AuthOptions]
     ApiResponse_CameraLiveOut_:
       properties:
         success:
@@ -3031,6 +3137,16 @@ components:
       - user_agent
       - created_at
       title: AuditLogOut
+    AuthOptions:
+      properties:
+        ldap_enabled:
+          type: boolean
+          title: Ldap Enabled
+      type: object
+      required:
+      - ldap_enabled
+      title: AuthOptions
+      description: What the sign-in page may offer; contains no user data.
     AuthProvider:
       type: string
       enum:
@@ -4772,6 +4888,28 @@ components:
       - data
       - pagination
       title: PaginatedResponse[LocationOut]
+    PaginatedResponse_RegisterRow_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/RegisterRow'
+          type: array
+          title: Data
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      type: object
+      required:
+      - message
+      - data
+      - pagination
+      title: PaginatedResponse[RegisterRow]
     PaginatedResponse_ShiftOut_:
       properties:
         success:
@@ -4934,6 +5072,80 @@ components:
       title: RecognitionStatus
       description: Status of a stored recognition event (§11). The engine only emits
         RECOGNIZED or UNKNOWN.
+    RegisterDay:
+      properties:
+        work_date:
+          type: string
+          format: date
+          title: Work Date
+        status:
+          anyOf:
+          - $ref: '#/components/schemas/AttendanceStatus'
+          - type: 'null'
+        letter:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Letter
+        is_manual:
+          type: boolean
+          title: Is Manual
+      type: object
+      required:
+      - work_date
+      - status
+      - letter
+      - is_manual
+      title: RegisterDay
+    RegisterRow:
+      properties:
+        employee_id:
+          type: integer
+          title: Employee Id
+        employee_code:
+          type: string
+          title: Employee Code
+        employee_name:
+          type: string
+          title: Employee Name
+        department_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Department Name
+        days:
+          items:
+            $ref: '#/components/schemas/RegisterDay'
+          type: array
+          title: Days
+        totals:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Totals
+        worked_minutes:
+          type: integer
+          title: Worked Minutes
+        late_minutes:
+          type: integer
+          title: Late Minutes
+        overtime_minutes:
+          type: integer
+          title: Overtime Minutes
+      type: object
+      required:
+      - employee_id
+      - employee_code
+      - employee_name
+      - department_name
+      - days
+      - totals
+      - worked_minutes
+      - late_minutes
+      - overtime_minutes
+      title: RegisterRow
+      description: 'One employee''s month (§13 screen 8): a cell per day with a record,
+        totals per status letter.'
     ReviewStatus:
       type: string
       enum:
@@ -5374,6 +5586,10 @@ components:
           - type: string
           - type: 'null'
           title: Session Expires At
+        timezone:
+          type: string
+          title: Timezone
+          description: IANA timezone the portal shows times in (setting general.timezone)
       type: object
       required:
       - id
@@ -5384,6 +5600,7 @@ components:
       - employee_id
       - permissions
       - last_login_at
+      - timezone
       title: UserProfile
     UserRole:
       type: string
