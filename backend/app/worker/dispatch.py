@@ -26,3 +26,11 @@ def start_report_export(
 def recompute_attendance_date(work_date: str) -> None:
     """Re-runs the rules for every existing day on a date (after a holiday changed)."""
     _send("app.worker.tasks.attendance.recompute_date", work_date)
+
+
+def push_payroll_now(work_date: str | None) -> None:
+    _send("app.worker.tasks.integration.push_payroll", work_date)
+
+
+def sync_hr_now() -> None:
+    _send("app.worker.tasks.integration.sync_hr")

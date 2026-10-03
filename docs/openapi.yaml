@@ -2317,6 +2317,282 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/reports/{report_type}:
+    get:
+      tags:
+      - reports
+      summary: Report data, or an Excel/PDF export job
+      operationId: get_report
+      parameters:
+      - name: report_type
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/ReportType'
+      - name: date_from
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: Date From
+      - name: date_to
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: Date To
+      - name: department_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Department Id
+      - name: employee_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Employee Id
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AttendanceStatus'
+          - type: 'null'
+          title: Status
+      - name: format
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - xlsx
+            - pdf
+            type: string
+          - type: 'null'
+          title: Format
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ReportOut_'
+        '202':
+          description: Export job queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ReportExportAccepted_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/integration/attendance:
+    get:
+      tags:
+      - integration
+      summary: Finalised attendance for payroll (API key)
+      description: 'Only days already finalised by the day-close job are returned
+        (FR-35); call after the day closes.
+
+        Values are the stored attendance including approved corrections.'
+      operationId: integration_attendance
+      parameters:
+      - name: date
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          description: Work date, YYYY-MM-DD
+          title: Date
+        description: Work date, YYYY-MM-DD
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: sort
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^-?[a-z_]+$
+          - type: 'null'
+          title: Sort
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse_IntegrationAttendanceOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/api-clients:
+    get:
+      tags:
+      - integration
+      summary: API keys
+      operationId: list_api_clients
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_list_ApiClientOut__'
+    post:
+      tags:
+      - integration
+      summary: Create an API key (shown once)
+      operationId: create_api_client
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiClientCreate'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ApiClientCreated_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/api-clients/{client_id}:
+    put:
+      tags:
+      - integration
+      summary: Update an API key
+      operationId: update_api_client
+      parameters:
+      - name: client_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Client Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiClientUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ApiClientOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - integration
+      summary: Revoke an API key
+      operationId: revoke_api_client
+      parameters:
+      - name: client_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Client Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/integration/payroll/push:
+    post:
+      tags:
+      - integration
+      summary: Send attendance to the payroll webhook now
+      description: 'Without `date`: sends every finalised day changed since the last
+        delivery (as the schedule does).'
+      operationId: push_payroll
+      parameters:
+      - name: date
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          description: Resend one work date
+          title: Date
+        description: Resend one work date
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_IntegrationJobAccepted_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/integration/hr/sync:
+    post:
+      tags:
+      - integration
+      summary: Run the HR sync now
+      operationId: run_hr_sync
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_IntegrationJobAccepted_'
   /api/v1/dashboard/summary:
     get:
       tags:
@@ -2538,6 +2814,133 @@ paths:
                 $ref: '#/components/schemas/ApiResponse_dict_str__str__'
 components:
   schemas:
+    ApiClientCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+        scopes:
+          items:
+            type: string
+            const: attendance:read
+          type: array
+          minItems: 1
+          title: Scopes
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      title: ApiClientCreate
+    ApiClientCreated:
+      properties:
+        client:
+          $ref: '#/components/schemas/ApiClientOut'
+        api_key:
+          type: string
+          title: Api Key
+          description: Shown once. Only a hash is stored; a lost key must be replaced.
+      type: object
+      required:
+      - client
+      - api_key
+      title: ApiClientCreated
+    ApiClientOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        name:
+          type: string
+          title: Name
+        key_prefix:
+          type: string
+          title: Key Prefix
+        scopes:
+          items:
+            type: string
+          type: array
+          title: Scopes
+        is_active:
+          type: boolean
+          title: Is Active
+        last_used_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Used At
+        created_at:
+          type: string
+          title: Created At
+      type: object
+      required:
+      - id
+      - name
+      - key_prefix
+      - scopes
+      - is_active
+      - last_used_at
+      - created_at
+      title: ApiClientOut
+    ApiClientUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 120
+            minLength: 1
+          - type: 'null'
+          title: Name
+        scopes:
+          anyOf:
+          - items:
+              type: string
+              const: attendance:read
+            type: array
+            minItems: 1
+          - type: 'null'
+          title: Scopes
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+      additionalProperties: false
+      type: object
+      title: ApiClientUpdate
+    ApiResponse_ApiClientCreated_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/ApiClientCreated'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[ApiClientCreated]
+    ApiResponse_ApiClientOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/ApiClientOut'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[ApiClientOut]
     ApiResponse_AttendanceDayOut_:
       properties:
         success:
@@ -2746,6 +3149,22 @@ components:
       - message
       - data
       title: ApiResponse[ImportAccepted]
+    ApiResponse_IntegrationJobAccepted_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/IntegrationJobAccepted'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[IntegrationJobAccepted]
     ApiResponse_JobOut_:
       properties:
         success:
@@ -2811,6 +3230,38 @@ components:
       - message
       - data
       title: ApiResponse[NoneType]
+    ApiResponse_ReportExportAccepted_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/ReportExportAccepted'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[ReportExportAccepted]
+    ApiResponse_ReportOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/ReportOut'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[ReportOut]
     ApiResponse_ShiftOut_:
       properties:
         success:
@@ -2910,6 +3361,25 @@ components:
       - message
       - data
       title: ApiResponse[dict[str, str]]
+    ApiResponse_list_ApiClientOut__:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/ApiClientOut'
+          type: array
+          title: Data
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[list[ApiClientOut]]
     ApiResponse_list_FaceOut__:
       properties:
         success:
@@ -4418,6 +4888,109 @@ components:
       required:
       - job_id
       title: ImportAccepted
+    IntegrationAttendanceOut:
+      properties:
+        employee_code:
+          type: string
+          title: Employee Code
+        hr_external_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Hr External Id
+        employee_name:
+          type: string
+          title: Employee Name
+        department_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Department Code
+        work_date:
+          type: string
+          format: date
+          title: Work Date
+        shift_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Shift Name
+        check_in_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Check In At
+        check_out_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Check Out At
+        worked_minutes:
+          type: integer
+          title: Worked Minutes
+        late_minutes:
+          type: integer
+          title: Late Minutes
+        early_minutes:
+          type: integer
+          title: Early Minutes
+        overtime_minutes:
+          type: integer
+          title: Overtime Minutes
+        status:
+          anyOf:
+          - $ref: '#/components/schemas/AttendanceStatus'
+          - type: 'null'
+        status_letter:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status Letter
+        is_manual:
+          type: boolean
+          title: Is Manual
+        finalized_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Finalized At
+        updated_at:
+          type: string
+          title: Updated At
+      type: object
+      required:
+      - employee_code
+      - hr_external_id
+      - employee_name
+      - department_code
+      - work_date
+      - shift_name
+      - check_in_at
+      - check_out_at
+      - worked_minutes
+      - late_minutes
+      - early_minutes
+      - overtime_minutes
+      - status
+      - status_letter
+      - is_manual
+      - finalized_at
+      - updated_at
+      title: IntegrationAttendanceOut
+      description: One finalised employee-day for payroll (§12 `/integration/attendance`).
+    IntegrationJobAccepted:
+      properties:
+        task:
+          type: string
+          title: Task
+        detail:
+          type: string
+          title: Detail
+      type: object
+      required:
+      - task
+      - detail
+      title: IntegrationJobAccepted
     JobOut:
       properties:
         id:
@@ -4844,6 +5417,28 @@ components:
       - data
       - pagination
       title: PaginatedResponse[HolidayOut]
+    PaginatedResponse_IntegrationAttendanceOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/IntegrationAttendanceOut'
+          type: array
+          title: Data
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      type: object
+      required:
+      - message
+      - data
+      - pagination
+      title: PaginatedResponse[IntegrationAttendanceOut]
     PaginatedResponse_LeaveOut_:
       properties:
         success:
@@ -5146,6 +5741,184 @@ components:
       title: RegisterRow
       description: 'One employee''s month (§13 screen 8): a cell per day with a record,
         totals per status letter.'
+    ReportChart:
+      properties:
+        x_key:
+          type: string
+          title: X Key
+        series:
+          items:
+            $ref: '#/components/schemas/ReportChartSeries'
+          type: array
+          title: Series
+        data:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Data
+      type: object
+      required:
+      - x_key
+      - series
+      - data
+      title: ReportChart
+      description: 'Data for one chart: `x_key` on the x axis, one bar per series.'
+    ReportChartSeries:
+      properties:
+        key:
+          type: string
+          title: Key
+        label:
+          type: string
+          title: Label
+      type: object
+      required:
+      - key
+      - label
+      title: ReportChartSeries
+    ReportColumn:
+      properties:
+        key:
+          type: string
+          title: Key
+        label:
+          type: string
+          title: Label
+        kind:
+          type: string
+          enum:
+          - date
+          - time
+          - minutes
+          - text
+          - code
+          - status
+          - bool
+          - count
+          - letter
+          title: Kind
+      type: object
+      required:
+      - key
+      - label
+      - kind
+      title: ReportColumn
+    ReportExportAccepted:
+      properties:
+        job_id:
+          type: string
+          title: Job Id
+      type: object
+      required:
+      - job_id
+      title: ReportExportAccepted
+    ReportOut:
+      properties:
+        report_type:
+          $ref: '#/components/schemas/ReportType'
+        title:
+          type: string
+          title: Title
+        date_from:
+          type: string
+          format: date
+          title: Date From
+        date_to:
+          type: string
+          format: date
+          title: Date To
+        columns:
+          items:
+            $ref: '#/components/schemas/ReportColumn'
+          type: array
+          title: Columns
+        rows:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Rows
+          description: One object per row keyed by column key. Times are UTC ISO strings;
+            minutes are integers.
+        total_rows:
+          type: integer
+          title: Total Rows
+        truncated:
+          type: boolean
+          title: Truncated
+          description: True when the preview shows only the first rows; exports contain
+            all
+        summary:
+          items:
+            $ref: '#/components/schemas/ReportSummaryItem'
+          type: array
+          title: Summary
+        chart:
+          anyOf:
+          - $ref: '#/components/schemas/ReportChart'
+          - type: 'null'
+        timezone:
+          type: string
+          title: Timezone
+      type: object
+      required:
+      - report_type
+      - title
+      - date_from
+      - date_to
+      - columns
+      - rows
+      - total_rows
+      - truncated
+      - summary
+      - chart
+      - timezone
+      title: ReportOut
+    ReportSummaryItem:
+      properties:
+        label:
+          type: string
+          title: Label
+        value:
+          anyOf:
+          - type: integer
+          - type: number
+          - type: string
+          title: Value
+        kind:
+          type: string
+          enum:
+          - date
+          - time
+          - minutes
+          - text
+          - code
+          - status
+          - bool
+          - count
+          - letter
+          title: Kind
+          default: count
+      type: object
+      required:
+      - label
+      - value
+      title: ReportSummaryItem
+    ReportType:
+      type: string
+      enum:
+      - daily
+      - monthly_register
+      - late_arrivals
+      - early_exits
+      - absentee
+      - overtime
+      - department_summary
+      - employee_history
+      title: ReportType
+      description: The reports of FR-30 (also the values allowed in scheduled report
+        emails).
     ReviewStatus:
       type: string
       enum:

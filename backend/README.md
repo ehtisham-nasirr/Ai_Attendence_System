@@ -102,3 +102,72 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy app
 ```
 
 The tests never use real employee data or real cameras: the engine is replaced by `FakeEngine` (`tests/conftest.py`).
+
+## Reports (FR-30, FR-31)
+
+`GET /api/v1/reports/{type}?date_from=&date_to=[&department_id=&employee_id=&status=]` returns a preview: the first 500 rows, plus a summary and chart data for the whole result. Report types:
+
+| Type | Content |
+|---|---|
+| `daily` | Every attendance day |
+| `monthly_register` | One calendar month (the month of `date_from`) |
+| `late_arrivals` | Days with late minutes |
+| `early_exits` | Days with early minutes |
+| `absentee` | Absent days |
+| `overtime` | Days with overtime minutes |
+| `department_summary` | Totals per department |
+| `employee_history` | All days of one employee (`employee_id` is required) |
+
+- **Range:** at most 366 days.
+- **Scope:** results follow the caller's data scope.
+- **Exports:** add `format=xlsx|pdf` to get `202 {job_id}` (audited as `report.export`). Poll `GET /api/v1/jobs/{job_id}`, then download `GET /api/v1/jobs/{job_id}/file`; only the requesting user can, for 24 hours.
+  - Excel has every row (times in each employee's timezone, minutes as h:mm, text that starts with `= + - @` neutralised).
+  - PDF stops at 5,000 rows.
+
+**Scheduled emails** (`notifications.report_schedules`, managed on the Reports screen):
+- `daily` sends yesterday;
+- `weekly` sends last Monday–Sunday, on Mondays;
+- `monthly` sends last month, on the 1st.
+
+Each schedule covers the whole organisation or one department. The **daily summary** goes to `notifications.hr_emails` (whole organisation) and to each department manager (their departments). **Check-in confirmation** (FR-33) emails the employee once per work day, only for live events (captured within the last 15 minutes).
+
+## Payroll integration (FR-34, FR-35)
+
+**Pull.** `GET /api/v1/integration/attendance?date=YYYY-MM-DD&page=&page_size=` with header `X-API-Key: ft_…`. Keys are created under Settings › Integration (shown once, stored as SHA-256) with scope `attendance:read`, and are rate-limited per key (`API_KEY_RATE_LIMIT_PER_MINUTE`, default 120).
+
+The endpoint returns only **finalised** days (call it after the day close, default 02:00). Each row contains:
+- `employee_code`, `hr_external_id`, `employee_name`, `department_code`;
+- `work_date`, `shift_name`, `check_in_at` / `check_out_at` (UTC);
+- `worked_minutes`, `late_minutes`, `early_minutes`, `overtime_minutes`;
+- `status` (+ `status_letter`), `is_manual`, `finalized_at`, `updated_at`.
+
+**Push** (`integration.payroll_mode = push`). Every day at `integration.payroll_push_time`, and on demand, FaceTrack POSTs to `integration.payroll_webhook_url`:
+
+```
+POST {payroll_webhook_url}
+Content-Type: application/json
+X-FaceTrack-Delivery: <uuid>
+X-FaceTrack-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256(PAYROLL_WEBHOOK_SECRET, "<t>." + body)>
+
+{"event": "attendance.finalized", "delivery_id": "...", "reason": "scheduled|manual",
+ "generated_at": "...", "days": [<rows as in the pull API>]}
+```
+
+- **What is sent:** every finalised day changed since the last successful delivery (watermark on `updated_at`). This includes night shifts that close after the push time, and corrections made after the day closed. Receivers should **upsert by (`employee_code`, `work_date`)**, reject timestamps older than 5 minutes, and compare signatures in constant time (reference: `app.domain.integration.payroll.verify`).
+- **Failures:** retried 5 times with exponential backoff (1, 2, 4, 8, 16 minutes); an admin alert follows the last failure.
+- **Manual push:** `POST /api/v1/integration/payroll/push[?date=]` (Super Admin) resends one date.
+
+## HR sync (FR-12, FR-24)
+
+Every day at `integration.hr_sync_time` when `integration.hr_sync_enabled` is on, and on demand (`POST /api/v1/integration/hr/sync`). FaceTrack calls `integration.hr_base_url` with `Authorization: Bearer $HR_API_TOKEN`. Responses may be a JSON array, or `{"data": [...], "next": "<url>"}` (pages are followed).
+
+| Request | Fields used |
+|---|---|
+| `GET /employees` | `employee_code` (match key), `full_name`, `department_code` (FaceTrack department code), `designation`, `email`, `phone`, `status` (`active`/`inactive`), `hr_external_id` or `id` |
+| `GET /leaves?from=&to=` (30 days back to 90 ahead) | `id` (or `external_ref`), `employee_code`, `from_date`, `to_date`, `type`, `status` (only `approved`, or no status, is imported) |
+
+- **Employees:** missing fields are left unchanged. An employee absent from the feed is **never** deactivated automatically (Q44); only `status: inactive` deactivates, which also stops recognition.
+- **Leave:** HR leave in the window that disappears from the feed is treated as cancelled. Every affected attendance day is recomputed.
+- **Logging:** each run is audited (`hr_sync.run`) with counts and the first 100 problems.
+
+**This contract has not been verified against the real HR or payroll system (P6).**

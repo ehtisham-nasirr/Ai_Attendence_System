@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
-from facetrack_common.constants import CameraRole
+from facetrack_common.constants import CameraRole, ReportType
 
 SettingGroup = Literal[
     "general", "recognition", "engine", "attendance", "retention", "notifications", "integration", "auth"
@@ -32,7 +32,7 @@ class ReportSchedule(BaseModel):
     """A scheduled report email (requirements §13 screen 12, FR-32)."""
 
     model_config = ConfigDict(extra="forbid")
-    report_type: str = Field(min_length=1, max_length=64)
+    report_type: ReportType
     frequency: Literal["daily", "weekly", "monthly"]
     time: str = Field(pattern=_HHMM_PATTERN)
     recipients: list[str] = Field(min_length=1, max_length=50)

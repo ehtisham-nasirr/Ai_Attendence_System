@@ -292,6 +292,13 @@ async def get_api_client(request: Request, db: Annotated[AsyncSession, Depends(g
     )
     if client is None or not hmac.compare_digest(client.key_hash, hash_api_key(key)):
         raise Unauthorized("A valid API key is required.")
+    from app.core.ratelimit import enforce_rate_limit  # noqa: PLC0415  # avoids an import cycle
+
+    await enforce_rate_limit(f"apikey:{client.id}", get_settings().api_key_rate_limit_per_minute)
+    now = datetime.now(UTC)
+    if client.last_used_at is None or now - client.last_used_at > timedelta(minutes=1):
+        client.last_used_at = now
+        await db.commit()
     return client
 
 

@@ -56,7 +56,7 @@ async def _check_references(db: AsyncSession, changes: dict[str, Any]) -> None:
         raise ValidationFailed(errors=errors)
 
 
-async def create_employee(db: AsyncSession, payload: EmployeeCreate, actor: User) -> Employee:
+async def create_employee(db: AsyncSession, payload: EmployeeCreate, actor: User | None) -> Employee:
     async with transaction(db):
         if await employee_repo.code_exists(db, payload.employee_code):
             raise Conflict("An employee with this code already exists (codes are never reused).")
@@ -71,7 +71,7 @@ async def create_employee(db: AsyncSession, payload: EmployeeCreate, actor: User
 
 
 async def update_employee(
-    db: AsyncSession, employee_id: int, payload: EmployeeUpdate, actor: User
+    db: AsyncSession, employee_id: int, payload: EmployeeUpdate, actor: User | None
 ) -> Employee:
     reload_gallery = False
     async with transaction(db):

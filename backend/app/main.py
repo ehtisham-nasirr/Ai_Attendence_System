@@ -11,7 +11,18 @@ from fastapi.routing import APIRoute
 from prometheus_client import CONTENT_TYPE_LATEST, REGISTRY, generate_latest
 
 from app.api import internal
-from app.api.v1 import attendance, auth, cameras, employees, organization, recognition, system, users
+from app.api.v1 import (
+    attendance,
+    auth,
+    cameras,
+    employees,
+    integration,
+    organization,
+    recognition,
+    reports,
+    system,
+    users,
+)
 from app.core.config import Settings, get_settings
 from app.core.db import get_engine
 from app.core.exceptions import register_exception_handlers
@@ -76,6 +87,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         cameras.router,
         recognition.router,
         attendance.router,
+        reports.router,
+        integration.router,
         system.router,
     ):
         app.include_router(router, prefix=API_PREFIX)

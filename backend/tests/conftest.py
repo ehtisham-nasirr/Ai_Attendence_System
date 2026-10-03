@@ -199,6 +199,22 @@ def no_celery(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, tuple[Any, ...
     return sent
 
 
+@pytest.fixture(autouse=True)
+def sent_tasks(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, tuple[Any, ...]]]:
+    """`task.delay(...)` inside tasks is recorded instead of going to the broker."""
+    from celery.app.task import Task
+
+    calls: list[tuple[str, tuple[Any, ...]]] = []
+
+    def record(
+        self: Task, args: tuple[Any, ...] | None = None, kwargs: dict[str, Any] | None = None, **_: Any
+    ) -> None:
+        calls.append((self.name, tuple(args or ())))
+
+    monkeypatch.setattr(Task, "apply_async", record)
+    return calls
+
+
 # --------------------------------------------------------------------------- factories
 
 

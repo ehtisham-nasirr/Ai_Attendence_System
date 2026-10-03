@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ report.title }}</title>
+<style>
+  @page { size: A4 {{ "landscape" if wide or columns|length > 8 else "portrait" }}; margin: 12mm;
+          @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 8pt; color: #64748b; } }
+  body { font-family: "DejaVu Sans", sans-serif; font-size: {{ "6.5pt" if wide else "8.5pt" }}; color: #0f172a; }
+  h1 { font-size: 15pt; margin: 0 0 6px; }
+  .meta { margin-bottom: 10px; color: #334155; }
+  .meta td { padding: 1px 10px 1px 0; }
+  .summary { margin: 6px 0 10px; }
+  .summary span { display: inline-block; margin-right: 14px; }
+  table.data { width: 100%; border-collapse: collapse; }
+  table.data th { background: #e2e8f0; text-align: left; padding: 3px; border: 0.5px solid #94a3b8; }
+  table.data td { padding: 2px 3px; border: 0.5px solid #cbd5e1; }
+  table.data tr:nth-child(even) td { background: #f8fafc; }
+  thead { display: table-header-group; }
+  .note { margin-top: 8px; color: #b45309; }
+</style>
+</head>
+<body>
+  <h1>FaceTrack — {{ report.title }}</h1>
+  <table class="meta">
+    {% for label, value in meta %}<tr><td><strong>{{ label }}</strong></td><td>{{ value }}</td></tr>{% endfor %}
+  </table>
+  <div class="summary">
+    {% for label, value in summary %}<span><strong>{{ label }}:</strong> {{ value }}</span>{% endfor %}
+  </div>
+  <table class="data">
+    <thead><tr>{% for column in columns %}<th>{{ column.label }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for row in rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}
+    </tbody>
+  </table>
+  {% if not rows %}<p>No rows match these filters.</p>{% endif %}
+  {% if omitted %}<p class="note">{{ omitted }} more rows are not shown. Export to Excel for every row.</p>{% endif %}
+</body>
+</html>

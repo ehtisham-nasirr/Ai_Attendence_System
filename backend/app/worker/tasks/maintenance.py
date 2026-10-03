@@ -12,7 +12,7 @@ from sqlalchemy import text
 from app.core.config import get_settings
 from app.core.redis import get_sync_redis
 from app.domain.retention import service as retention
-from app.services import metrics_store
+from app.services import metrics_store, storage
 from app.worker import runtime
 from app.worker.consumer import GROUP
 
@@ -80,14 +80,15 @@ def apply_retention() -> dict[str, int]:
 
 @shared_task(name="app.worker.tasks.maintenance.cleanup_temp_files")
 def cleanup_temp_files() -> int:
-    """Uploaded import files are deleted after processing; this removes any left by a crash."""
-    directory = get_settings().media_root / "tmp-imports"
-    if not directory.exists():
-        return 0
-    cutoff = (datetime.now(UTC) - timedelta(hours=6)).timestamp()
+    """Removes import uploads left by a crash, and report exports once their job has expired (24 h)."""
     removed = 0
-    for path in directory.iterdir():
-        if path.is_file() and path.stat().st_mtime < cutoff:
-            path.unlink(missing_ok=True)
-            removed += 1
+    directory = get_settings().media_root / "tmp-imports"
+    if directory.exists():
+        cutoff = (datetime.now(UTC) - timedelta(hours=6)).timestamp()
+        for path in directory.iterdir():
+            if path.is_file() and path.stat().st_mtime < cutoff:
+                path.unlink(missing_ok=True)
+                removed += 1
+    expired = list(storage.get_store().list_older_than("exports", datetime.now(UTC) - timedelta(hours=25)))
+    removed += storage.delete_quietly(expired)
     return removed

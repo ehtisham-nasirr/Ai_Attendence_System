@@ -6,14 +6,28 @@ Only verifies credentials: the user must already exist in FaceTrack with auth_pr
 
 import asyncio
 import logging
+from typing import Any
 
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 
+def _server(uri: str) -> Any:
+    from ldap3 import ALL, Server  # noqa: PLC0415
+
+    return Server(uri, get_info=ALL, connect_timeout=5)
+
+
+def _connect(server: Any, user: str, password: str) -> Any:
+    """Bound connection (raises LDAPException on bad credentials). Tests swap in ldap3's mock strategy."""
+    from ldap3 import Connection  # noqa: PLC0415
+
+    return Connection(server, user, password, auto_bind=True)
+
+
 def _verify(username: str, password: str) -> bool:
-    from ldap3 import ALL, SUBTREE, Connection, Server  # noqa: PLC0415
+    from ldap3 import SUBTREE  # noqa: PLC0415
     from ldap3.core.exceptions import LDAPException  # noqa: PLC0415
     from ldap3.utils.conv import escape_filter_chars  # noqa: PLC0415
 
@@ -21,9 +35,9 @@ def _verify(username: str, password: str) -> bool:
     if not settings.ldap_server_uri or not password:
         return False
     try:
-        server = Server(settings.ldap_server_uri, get_info=ALL, connect_timeout=5)
-        with Connection(
-            server, settings.ldap_bind_dn, settings.ldap_bind_password.get_secret_value(), auto_bind=True
+        server = _server(settings.ldap_server_uri)
+        with _connect(
+            server, settings.ldap_bind_dn, settings.ldap_bind_password.get_secret_value()
         ) as service:
             service.search(
                 settings.ldap_base_dn,
@@ -35,7 +49,7 @@ def _verify(username: str, password: str) -> bool:
             if len(service.entries) != 1:
                 return False
             user_dn = service.entries[0].entry_dn
-        with Connection(server, user_dn, password, auto_bind=True):
+        with _connect(server, user_dn, password):
             return True
     except LDAPException as exc:
         logger.warning("directory sign-in failed", extra={"error": type(exc).__name__})

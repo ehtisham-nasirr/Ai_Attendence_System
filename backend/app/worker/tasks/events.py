@@ -49,4 +49,10 @@ def process_event(message_id: str, fields: dict[str, Any]) -> str:
         metrics_store.increment("events_processed_total")
         for message_type, data in service.live_messages(event, outcome):
             live.publish_sync(message_type, data)
+        if outcome.checkin_text and outcome.employee is not None and outcome.attendance is not None:
+            from app.worker.tasks.notifications import confirm_checkin  # noqa: PLC0415
+
+            confirm_checkin.delay(
+                outcome.employee.id, outcome.attendance.work_date.isoformat(), outcome.checkin_text
+            )
     return "stored" if outcome.stored else "duplicate"

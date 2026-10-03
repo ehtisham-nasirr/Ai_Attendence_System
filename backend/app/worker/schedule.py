@@ -32,6 +32,10 @@ def beat_schedule() -> dict[str, dict[str, Any]]:
             "task": "app.worker.tasks.maintenance.cleanup_temp_files",
             "schedule": crontab(minute=47, hour="*/3"),
         },
+        "scheduled-integrations": {
+            "task": "app.worker.tasks.integration.run_due_integrations",
+            "schedule": crontab(minute="*/5"),
+        },
         "scheduled-notifications": {
             "task": "app.worker.tasks.notifications.run_due_notifications",
             "schedule": crontab(minute="*/5"),

@@ -24,6 +24,8 @@ celery.conf.update(
         "app.worker.tasks.cameras",
         "app.worker.tasks.employees",
         "app.worker.tasks.notifications",
+        "app.worker.tasks.reports",
+        "app.worker.tasks.integration",
     ),
 )
 

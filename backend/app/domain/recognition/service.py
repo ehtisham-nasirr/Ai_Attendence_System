@@ -7,7 +7,7 @@ attendance day is recomputed from all events, so processing the same event twice
 import base64
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import numpy as np
@@ -48,12 +48,18 @@ class InvalidEvent(Exception):
     """The event is well-formed but cannot be accepted (unknown camera/employee); dead-letter it."""
 
 
+# A check-in confirmation (FR-33) is only sent for an event this recent; replays of old events stay quiet.
+CHECKIN_NOTICE_MAX_AGE = timedelta(minutes=15)
+
+
 @dataclass
 class ProcessOutcome:
     stored: bool
     event_id: int | None
     attendance: AttendanceDay | None
     employee: Employee | None
+    # Set when this event became the day's check-in: "09:05 at Main entrance" (employee local time).
+    checkin_text: str | None = None
 
 
 def event_to_out(event: RecognitionEventRecord) -> EventOut:
@@ -111,9 +117,17 @@ async def process_event(db: AsyncSession, event: RecognitionEvent) -> ProcessOut
             db.add(_unknown_face(event, event_id))
             await db.flush()
         day = None
+        checkin_text = None
         if employee is not None:
             day = await attendance_service.apply_recognition(db, employee, event.captured_at, values)
-    return ProcessOutcome(True, event_id, day, employee)
+            if (
+                day is not None
+                and day.check_in_event_id == event_id
+                and datetime.now(UTC) - event.captured_at <= CHECKIN_NOTICE_MAX_AGE
+            ):
+                tz = attendance_service.employee_context(employee, values).tz
+                checkin_text = f"{event.captured_at.astimezone(tz):%H:%M} at {camera.name}"
+    return ProcessOutcome(True, event_id, day, employee, checkin_text)
 
 
 def _unknown_face(event: RecognitionEvent, event_id: int) -> UnknownFace:

@@ -1,6 +1,7 @@
 """Attendance days and corrections."""
 
 from datetime import UTC, date, datetime, time, timedelta
+from typing import Any
 
 from facetrack_common.constants import AttendanceStatus, CorrectionField, CorrectionStatus
 from facetrack_common.models import AttendanceCorrection, AttendanceDay, Employee
@@ -248,3 +249,71 @@ async def days_between(
         )
     )
     return list(rows)
+
+
+async def report_days(
+    db: AsyncSession,
+    scope: DataScope,
+    *,
+    date_from: date,
+    date_to: date,
+    department_id: int | None = None,
+    employee_id: int | None = None,
+    statuses: list[AttendanceStatus] | None = None,
+    condition: Any = None,
+    limit: int | None = None,
+) -> list[AttendanceDay]:
+    """Attendance days for reports, ordered by date then employee code. Includes employees deleted
+    later: reports are history (FR-30)."""
+    stmt = (
+        select(AttendanceDay)
+        .join(Employee, Employee.id == AttendanceDay.employee_id)
+        .options(
+            selectinload(AttendanceDay.employee).selectinload(Employee.department),
+            selectinload(AttendanceDay.employee).selectinload(Employee.location),
+            selectinload(AttendanceDay.shift),
+        )
+        .where(AttendanceDay.work_date >= date_from, AttendanceDay.work_date <= date_to)
+    )
+    stmt = scope_filter(stmt, scope)
+    if department_id:
+        stmt = stmt.where(Employee.department_id == department_id)
+    if employee_id:
+        stmt = stmt.where(AttendanceDay.employee_id == employee_id)
+    if statuses:
+        stmt = stmt.where(AttendanceDay.status.in_(statuses))
+    if condition is not None:
+        stmt = stmt.where(condition)
+    stmt = stmt.order_by(AttendanceDay.work_date, Employee.employee_code)
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    return list((await db.scalars(stmt)).all())
+
+
+async def count_report_days(
+    db: AsyncSession,
+    scope: DataScope,
+    *,
+    date_from: date,
+    date_to: date,
+    department_id: int | None = None,
+    employee_id: int | None = None,
+    statuses: list[AttendanceStatus] | None = None,
+    condition: Any = None,
+) -> int:
+    stmt = (
+        select(func.count())
+        .select_from(AttendanceDay)
+        .join(Employee, Employee.id == AttendanceDay.employee_id)
+        .where(AttendanceDay.work_date >= date_from, AttendanceDay.work_date <= date_to)
+    )
+    stmt = scope_filter(stmt, scope)
+    if department_id:
+        stmt = stmt.where(Employee.department_id == department_id)
+    if employee_id:
+        stmt = stmt.where(AttendanceDay.employee_id == employee_id)
+    if statuses:
+        stmt = stmt.where(AttendanceDay.status.in_(statuses))
+    if condition is not None:
+        stmt = stmt.where(condition)
+    return int(await db.scalar(stmt) or 0)

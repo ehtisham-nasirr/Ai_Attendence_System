@@ -140,6 +140,19 @@ class LoadLevel(IntEnum):
     EMBEDDING_DEFERRED = 5
 
 
+class ReportType(StrEnum):
+    """The reports of FR-30 (also the values allowed in scheduled report emails)."""
+
+    DAILY = "daily"
+    MONTHLY_REGISTER = "monthly_register"
+    LATE_ARRIVALS = "late_arrivals"
+    EARLY_EXITS = "early_exits"
+    ABSENTEE = "absentee"
+    OVERTIME = "overtime"
+    DEPARTMENT_SUMMARY = "department_summary"
+    EMPLOYEE_HISTORY = "employee_history"
+
+
 class WsMessageType(StrEnum):
     """Allowed `/ws/live` message types (standards/04). Adding one is a contract change."""
 
