@@ -1,0 +1,46 @@
+# Secrets and local environments (standards/12)
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Frontend
+node_modules/
+dist/
+build/
+coverage/
+playwright-report/
+test-results/
+
+# FaceTrack-specific: never commit models, recordings, face images or embeddings
+models/
+*.onnx
+*.xml
+*.bin
+recordings/
+*.mp4
+*.mkv
+*.ts
+!frontend/**/*.ts
+!frontend/*.ts
+snapshots/
+enroll/
+*.npy
+*.faiss
+
+# Engine local event buffer (may hold encrypted biometric payloads)
+engine/buffer/
+
+# Infra runtime data
+infra/nginx/certs/*
+!infra/nginx/certs/.gitkeep
+infra/data/
