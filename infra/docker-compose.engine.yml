@@ -1,0 +1,39 @@
+# One FaceTrack recognition engine node (requirements §18). Run on each CPU server:
+#
+#   cd infra && cp env/engine.env.example env/engine.env   # node name, DB/Redis on the backend host, keys
+#   docker compose -f docker-compose.engine.yml up -d --build
+#
+# CPU only (standards/17). Pin the engine to the cores reserved for it (ENGINE_CPUSET) and keep
+# ENGINE_INFERENCE_WORKERS x ENGINE_THREADS_PER_WORKER within that budget.
+
+name: facetrack-engine
+
+services:
+  engine:
+    image: ${REGISTRY:-facetrack}/engine:${FACETRACK_VERSION:-latest}
+    build:
+      context: ..
+      dockerfile: engine/Dockerfile
+    env_file: env/engine.env
+    environment:
+      ENGINE_MEDIA_ROOT: /srv/media
+      ENGINE_BUFFER_DIR: /srv/engine/buffer
+    cpuset: "${ENGINE_CPUSET:-0-15}"
+    cpus: "${ENGINE_CPUS:-14}"
+    mem_limit: ${ENGINE_MEMORY:-12g}
+    volumes:
+      # Same snapshot store as the backend (local path on the backend host, NFS elsewhere; ADR-0005).
+      - ${MEDIA_DIR:-./data/media}:/srv/media
+      # Encrypted event buffer for Redis outages: must survive container restarts.
+      - engine-buffer:/srv/engine/buffer
+    ports:
+      # The backend polls /cameras/status, /load and calls /embed here (X-Engine-Token).
+      - "${INTERNAL_BIND_IP:-127.0.0.1}:8100:8100"
+    restart: always
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
+
+volumes:
+  engine-buffer: {}

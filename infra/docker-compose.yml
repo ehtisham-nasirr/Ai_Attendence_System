@@ -1,0 +1,247 @@
+# FaceTrack backend stack (requirements §18). Engine nodes run infra/docker-compose.engine.yml.
+#
+#   cd infra && cp .env.example .env && cp env/backend.env.example env/backend.env   # fill every change-me
+#   docker compose up -d --build
+#
+# Only Nginx (443/80) and MediaMTX's WebRTC media port are published to the LAN. PostgreSQL, Redis and
+# the MediaMTX API are published on INTERNAL_BIND_IP only, for the engine nodes on the isolated VLAN.
+
+name: facetrack
+
+x-backend: &backend
+  image: ${REGISTRY:-facetrack}/backend:${FACETRACK_VERSION:-latest}
+  build:
+    context: ..
+    dockerfile: backend/Dockerfile
+  env_file: env/backend.env
+  environment:
+    DATABASE_URL: postgresql+asyncpg://facetrack:${POSTGRES_PASSWORD}@postgres:5432/facetrack
+    REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+    MEDIAMTX_API_URL: http://mediamtx:9997
+    MEDIA_ROOT: /srv/media
+  volumes:
+    # Shared with the engine nodes (same path, or an NFS mount on other hosts; ADR-0005). Owned by uid 10001.
+    - ${MEDIA_DIR:-./data/media}:/srv/media
+  networks: [internal]
+  restart: always
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+  logging: &logging
+    driver: json-file
+    options: { max-size: "20m", max-file: "5" }
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: facetrack
+      POSTGRES_USER: facetrack
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/.env}
+      ENGINE_DB_PASSWORD: ${ENGINE_DB_PASSWORD:?set ENGINE_DB_PASSWORD in infra/.env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${INTERNAL_BIND_IP:-127.0.0.1}:5432:5432"
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U facetrack -d facetrack"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: always
+    logging: *logging
+
+  redis:
+    image: redis:7-alpine
+    # AOF on (§18): the event stream must survive a restart.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in infra/.env}"]
+    volumes:
+      - redis-data:/data
+    ports:
+      - "${INTERNAL_BIND_IP:-127.0.0.1}:6379:6379"
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    restart: always
+    logging: *logging
+
+  migrate:
+    <<: *backend
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  backend:
+    <<: *backend
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    environment:
+      DATABASE_URL: postgresql+asyncpg://facetrack:${POSTGRES_PASSWORD}@postgres:5432/facetrack
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      MEDIAMTX_API_URL: http://mediamtx:9997
+      MEDIA_ROOT: /srv/media
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  worker:
+    <<: *backend
+    command: ["celery", "-A", "app.worker", "worker", "--loglevel=INFO", "--concurrency=${WORKER_CONCURRENCY:-4}"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.worker inspect ping -d celery@$$HOSTNAME --timeout 10 | grep -q pong"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+      start_period: 30s
+
+  scheduler:
+    <<: *backend
+    # Exactly one beat process per deployment.
+    command: ["celery", "-A", "app.worker", "beat", "--loglevel=INFO", "--schedule", "/tmp/celerybeat-schedule"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    # Beat serves no HTTP; a stalled scheduler shows up as the DayCloseStale alert instead.
+    healthcheck:
+      disable: true
+
+  nginx:
+    image: ${REGISTRY:-facetrack}/nginx:${FACETRACK_VERSION:-latest}
+    build:
+      context: ..
+      dockerfile: infra/nginx/Dockerfile
+    environment:
+      SERVER_NAME: ${SERVER_NAME:-facetrack.example.local}
+    volumes:
+      - ./nginx/certs:/etc/nginx/certs:ro
+    ports:
+      - "${PUBLIC_BIND_IP:-0.0.0.0}:443:443"
+      - "${PUBLIC_BIND_IP:-0.0.0.0}:80:80"
+    networks: [internal, edge]
+    depends_on:
+      backend: { condition: service_healthy }
+    restart: always
+    logging: *logging
+
+  mediamtx:
+    image: bluenviron/mediamtx:1.21.1
+    volumes:
+      - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
+    environment:
+      # Address browsers use for WebRTC media (the server's LAN IP or name).
+      MTX_WEBRTCADDITIONALHOSTS: ${MEDIAMTX_PUBLIC_HOST:-127.0.0.1}
+    ports:
+      - "${PUBLIC_BIND_IP:-0.0.0.0}:8189:8189/udp"
+    networks: [internal]
+    restart: always
+    logging: *logging
+
+  backup:
+    image: ${REGISTRY:-facetrack}/backup:${FACETRACK_VERSION:-latest}
+    build:
+      context: backup
+    environment:
+      PGHOST: postgres
+      PGUSER: facetrack
+      PGDATABASE: facetrack
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?set BACKUP_ENCRYPTION_KEY in infra/.env}
+      BACKUP_TIME: ${BACKUP_TIME:-01:30}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-30}
+      TZ: ${TZ:-Asia/Karachi}
+    volumes:
+      - ${BACKUP_DIR:-./data/backups}:/backups
+      - node-textfile:/textfile
+    networks: [internal]
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: always
+    logging: *logging
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${INTERNAL_BIND_IP:-127.0.0.1}:9090:9090"
+    networks: [internal]
+    restart: always
+    logging: *logging
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    entrypoint: ["/bin/sh", "/etc/alertmanager/render-and-run.sh"]
+    environment:
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
+      SMTP_SMARTHOST: ${SMTP_SMARTHOST:-}
+      SMTP_FROM: ${SMTP_FROM:-facetrack@example.local}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      TEAMS_WEBHOOK_URL: ${TEAMS_WEBHOOK_URL:-}
+    volumes:
+      - ./monitoring/alertmanager:/etc/alertmanager:ro
+      - alertmanager-data:/alertmanager
+    networks: [internal]
+    restart: always
+    logging: *logging
+
+  grafana:
+    image: grafana/grafana-oss:12.1.1
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in infra/.env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_SERVER_ROOT_URL: https://${SERVER_NAME:-facetrack.example.local}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    networks: [internal]
+    restart: always
+    logging: *logging
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    command:
+      - --path.rootfs=/host
+      - --collector.textfile.directory=/textfile
+    volumes:
+      - /:/host:ro,rslave
+      - node-textfile:/textfile:ro
+    networks: [internal]
+    pid: host
+    restart: always
+    logging: *logging
+
+networks:
+  internal: {}
+  edge: {}
+
+volumes:
+  postgres-data: {}
+  redis-data: {}
+  prometheus-data: {}
+  alertmanager-data: {}
+  grafana-data: {}
+  node-textfile: {}

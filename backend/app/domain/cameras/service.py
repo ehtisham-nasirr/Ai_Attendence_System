@@ -92,6 +92,18 @@ async def _sync_live_path(camera: Camera) -> None:
     await mediamtx.upsert_path(camera.id, cipher.decrypt_str(token, CRYPTO_PURPOSE_CAMERA_URL))
 
 
+async def sync_live_paths(db: AsyncSession) -> int:
+    """Re-applies every camera's live-view path; MediaMTX keeps API-added paths only in memory, so this
+    restores them after a MediaMTX restart. Returns the number of paths accepted."""
+    cameras = await camera_repo.all_cameras(db)
+    applied = 0
+    for camera in cameras:
+        if camera.deleted_at is None:
+            await _sync_live_path(camera)
+            applied += 1
+    return applied
+
+
 async def create_camera(db: AsyncSession, payload: CameraCreate, actor: User) -> Camera:
     _check_url(payload.rtsp_url, "rtsp_url")
     _check_url(payload.substream_url, "substream_url")

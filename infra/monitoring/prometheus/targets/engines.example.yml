@@ -1,0 +1,5 @@
+# Copy to engines.yml. One entry per engine node (its INTERNAL_BIND_IP:8100); `node` must match
+# ENGINE_NODE_NAME so alerts name the right server.
+- targets: ["10.20.0.11:8100"]
+  labels:
+    node: node-1

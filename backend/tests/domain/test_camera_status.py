@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from conftest import make_camera, make_org
 from facetrack_common.constants import CameraMode, CameraRole, CameraStatus
 from facetrack_common.models import Camera
@@ -70,3 +71,23 @@ async def test_disabled_camera_is_reported_disabled(db: AsyncSession) -> None:
     await camera_status.apply_node_status(db, "node-1", [], 1)
     await db.refresh(camera)
     assert camera.status == CameraStatus.DISABLED
+
+
+async def test_live_paths_are_reapplied_for_every_camera(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.domain.cameras import service as camera_service
+    from app.services import mediamtx
+
+    org = await make_org(db)
+    entry = await make_camera(db, org, "A", CameraRole.ENTRY, url="rtsp://u:pw@10.0.0.5/main")
+    await make_camera(db, org, "B", CameraRole.EXIT)
+    applied: list[tuple[int, str]] = []
+
+    async def upsert(camera_id: int, source_url: str) -> bool:
+        applied.append((camera_id, source_url))
+        return True
+
+    monkeypatch.setattr(mediamtx, "upsert_path", upsert)
+    assert await camera_service.sync_live_paths(db) == 2
+    assert (entry.id, "rtsp://u:pw@10.0.0.5/main") in applied  # decrypted only for MediaMTX

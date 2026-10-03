@@ -1,0 +1,88 @@
+# promtool test rules: checks the §18 thresholds fire when they should and stay quiet otherwise.
+rule_files:
+  - ../rules/facetrack.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'facetrack_engine_camera_connected{instance="e1:8100",node="node-1",camera_id="7"}'
+        values: "1 0 0 0 0 0 0 0"
+      - series: 'facetrack_engine_cpu_percent{instance="e1:8100",node="node-1"}'
+        values: "90x10"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: CameraOffline
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: CameraOffline
+        exp_alerts:
+          - exp_labels: { severity: warning, instance: "e1:8100", node: node-1, camera_id: "7" }
+            exp_annotations:
+              summary: "Camera 7 offline for more than 5 minutes"
+              description: "Engine node-1 has no video from camera 7."
+      - eval_time: 6m
+        alertname: EngineCpuHigh
+        exp_alerts:
+          - exp_labels: { severity: warning, instance: "e1:8100", node: node-1 }
+            exp_annotations:
+              summary: "Engine node-1 CPU above 85% for 5 minutes"
+              description: "CPU is 90%. The degradation ladder may step down; check camera count and rates."
+
+  # Low FPS alerts only while the camera is ACTIVE.
+  - interval: 1m
+    input_series:
+      - series: 'facetrack_engine_camera_fps{instance="e1:8100",node="node-1",camera_id="1"}'
+        values: "2x10"
+      - series: 'facetrack_engine_camera_fps_target{instance="e1:8100",node="node-1",camera_id="1"}'
+        values: "8x10"
+      - series: 'facetrack_engine_camera_mode{instance="e1:8100",node="node-1",camera_id="1",mode="ACTIVE"}'
+        values: "1x10"
+      - series: 'facetrack_engine_camera_fps{instance="e1:8100",node="node-1",camera_id="2"}'
+        values: "1x10"
+      - series: 'facetrack_engine_camera_fps_target{instance="e1:8100",node="node-1",camera_id="2"}'
+        values: "8x10"
+      - series: 'facetrack_engine_camera_mode{instance="e1:8100",node="node-1",camera_id="2",mode="ACTIVE"}'
+        values: "0x10"
+      - series: 'facetrack_engine_camera_mode{instance="e1:8100",node="node-1",camera_id="2",mode="IDLE"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: CameraFpsBelowTarget
+        exp_alerts:
+          - exp_labels: { severity: warning, instance: "e1:8100", node: node-1, camera_id: "1" }
+            exp_annotations:
+              summary: "Camera 1 below 80% of its target FPS"
+              description: "Processed FPS is 0% of the plan on node-1."
+
+  - interval: 1m
+    input_series:
+      - series: 'facetrack_backup_last_success_timestamp_seconds{instance="node-exporter:9100"}'
+        values: "0x1700"
+      - series: 'facetrack_backup_last_run_success{instance="node-exporter:9100"}'
+        values: "1x1700"
+    alert_rule_test:
+      - eval_time: 20h
+        alertname: BackupMissing
+        exp_alerts: []
+      - eval_time: 27h
+        alertname: BackupMissing
+        exp_alerts:
+          - exp_labels: { severity: critical, instance: "node-exporter:9100" }
+            exp_annotations:
+              summary: "No successful database backup in the last 26 hours"
+      - eval_time: 27h
+        alertname: BackupFailed
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'facetrack_backend_event_queue_lag_seconds{instance="backend:8000",job="backend"}'
+        values: "10 70 80 90 95"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: EventQueueLag
+        exp_alerts:
+          - exp_labels: { severity: warning, instance: "backend:8000", job: backend }
+            exp_annotations:
+              summary: "Recognition events waiting more than 60 s"
+              description: "The oldest unacknowledged event is 95 s old; check the Celery workers."

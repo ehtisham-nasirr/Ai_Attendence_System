@@ -1,5 +1,5 @@
 # FaceTrack monorepo tasks (standards/01). Each Python package has its own uv environment.
-.PHONY: help sync test lint typecheck test-common test-engine test-backend test-frontend lint-common lint-engine lint-backend lint-frontend build-frontend e2e models sample-video benchmark migrate gen-api seed
+.PHONY: help sync test lint typecheck test-common test-engine test-backend test-frontend lint-common lint-engine lint-backend lint-frontend build-frontend e2e models sample-video benchmark migrate gen-api seed images check-monitoring
 
 help:
 	@grep -E '^[a-z-]+:' Makefile | sed 's/:.*//' | sort | tr '\n' ' '; echo
@@ -71,3 +71,18 @@ seed:
 gen-api:
 	cd backend && uv run python -m app.scripts.export_openapi
 	cd frontend && npm run gen-api
+
+# Deployment images (infra/docker-compose*.yml; docs/runbook.md). Needs infra/.env and infra/env/*.env.
+images:
+	cd infra && docker compose build
+	cd infra && docker compose -f docker-compose.engine.yml build
+
+# Prometheus config, alert rules and their unit tests, and the Alertmanager template (§18).
+PROM_IMAGE = prom/prometheus:v3.5.0
+AM_IMAGE = prom/alertmanager:v0.28.1
+check-monitoring:
+	docker run --rm -v $(CURDIR)/infra/monitoring/prometheus:/etc/prometheus:ro --entrypoint promtool $(PROM_IMAGE) check config /etc/prometheus/prometheus.yml
+	docker run --rm -v $(CURDIR)/infra/monitoring/prometheus:/etc/prometheus:ro -w /etc/prometheus/tests --entrypoint promtool $(PROM_IMAGE) test rules facetrack_test.yml
+	docker run --rm -e ALERT_EMAIL_TO=ops@example.local -e TEAMS_WEBHOOK_URL=https://example.invalid/hook \
+	  -v $(CURDIR)/infra/monitoring/alertmanager:/etc/alertmanager:ro --entrypoint /bin/sh $(AM_IMAGE) \
+	  -c 'sed "/^exec /d" /etc/alertmanager/render-and-run.sh > /tmp/render.sh && sh /tmp/render.sh && amtool check-config /alertmanager/alertmanager.yml'

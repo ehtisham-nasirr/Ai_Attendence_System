@@ -82,8 +82,8 @@ def push_payroll(self: Any, work_date: str | None = None) -> dict[str, Any]:
     except httpx.HTTPError as exc:
         attempt = self.request.retries + 1
         logger.warning("payroll push failed", extra={"attempt": attempt, "error": type(exc).__name__})
-        metrics_store.increment("payroll_push_failures_total")
         if self.request.retries >= MAX_ATTEMPTS:
+            metrics_store.increment("payroll_push_failures_total")
             from app.worker.tasks.notifications import send_alert  # noqa: PLC0415
 
             send_alert.delay(
@@ -127,6 +127,7 @@ def sync_hr() -> dict[str, Any]:
         leaves = hr_client.fetch_leaves(base_url, *window)
     except hr_client.HrSystemError as exc:
         logger.error("HR sync failed", extra={"error": str(exc)})
+        metrics_store.increment("hr_sync_failures_total")
         from app.worker.tasks.notifications import send_alert  # noqa: PLC0415
 
         send_alert.delay("HR sync failed", str(exc))

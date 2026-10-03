@@ -1,0 +1,152 @@
+# Alerts of requirements §18, plus "service down" and stale-job checks. Thresholds match §18 where it
+# gives one; the others are marked (default) and listed in docs/open-questions.md (Q49).
+groups:
+  - name: facetrack-engine
+    rules:
+      - alert: EngineDown
+        expr: up{job="engine"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "Engine {{ $labels.node }} is not responding"
+          description: "Prometheus cannot scrape {{ $labels.instance }}; recognition on its cameras has stopped."
+
+      - alert: CameraOffline
+        expr: facetrack_engine_camera_connected == 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Camera {{ $labels.camera_id }} offline for more than 5 minutes"
+          description: "Engine {{ $labels.node }} has no video from camera {{ $labels.camera_id }}."
+
+      - alert: EngineCpuHigh
+        expr: facetrack_engine_cpu_percent > 85
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Engine {{ $labels.node }} CPU above 85% for 5 minutes"
+          description: "CPU is {{ $value | printf \"%.0f\" }}%. The degradation ladder may step down; check camera count and rates."
+
+      - alert: DegradationLadderStep3
+        expr: facetrack_engine_load_level >= 3
+        for: 1m
+        labels: { severity: warning }
+        annotations:
+          summary: "Engine {{ $labels.node }} at degradation step {{ $value }}"
+          description: "Recognition is running with reduced rates or skipped steps (requirements §10.4)."
+
+      - alert: CameraLagHigh
+        expr: facetrack_engine_camera_lag_seconds > 2
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "Camera {{ $labels.camera_id }} lag above 2 s"
+          description: "Frames are {{ $value | printf \"%.1f\" }} s old when detection returns on {{ $labels.node }}."
+
+      - alert: CameraFpsBelowTarget
+        # Only while ACTIVE: idle and cooldown rates are low by design.
+        expr: |
+          (facetrack_engine_camera_fps / (facetrack_engine_camera_fps_target > 0)) < 0.8
+          and on (instance, camera_id) facetrack_engine_camera_mode{mode="ACTIVE"} == 1
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Camera {{ $labels.camera_id }} below 80% of its target FPS"
+          description: "Processed FPS is {{ $value | printf \"%.0f\" }}% of the plan on {{ $labels.node }}."
+
+      - alert: EngineEventsLost
+        expr: facetrack_engine_lost_events > 0
+        labels: { severity: critical }
+        annotations:
+          summary: "Engine {{ $labels.node }} dropped recognition events (disk buffer full)"
+          description: "Camera {{ $labels.camera_id }}: the backend was unreachable long enough to fill the buffer."
+
+      - alert: EngineEventsBuffered
+        expr: facetrack_engine_buffered_events > 0
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Engine {{ $labels.node }} cannot deliver events to the backend for 10 minutes"
+          description: "Events are kept in the disk buffer and sent when Redis is reachable again."
+
+      - alert: EngineInferenceWorkerRestarts
+        expr: increase(facetrack_engine_worker_restarts_total[15m]) > 2
+        labels: { severity: warning }
+        annotations:
+          summary: "Inference workers on {{ $labels.node }} restarted {{ $value }} times in 15 minutes (default)"
+
+  - name: facetrack-backend
+    rules:
+      - alert: BackendDown
+        expr: up{job="backend"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "FaceTrack backend is not responding"
+
+      - alert: EventQueueLag
+        expr: facetrack_backend_event_queue_lag_seconds > 60
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "Recognition events waiting more than 60 s"
+          description: "The oldest unacknowledged event is {{ $value | printf \"%.0f\" }} s old; check the Celery workers."
+
+      - alert: EventsDeadLettered
+        expr: increase(facetrack_backend_events_dead_lettered_total[30m]) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "Recognition events were rejected (dead-letter stream)"
+          description: "Inspect recognition.events.dead in Redis (docs/runbook.md)."
+
+      - alert: DayCloseStale
+        expr: time() - facetrack_backend_day_close_last_success_timestamp > 3600
+        for: 10m
+        labels: { severity: critical }
+        annotations:
+          summary: "The day-close job has not succeeded for over an hour (default)"
+          description: "Absent / Missing check-out statuses are not being finalised (FR-23)."
+
+      - alert: PayrollPushFailed
+        expr: increase(facetrack_backend_payroll_push_failures_total[1d]) > 0
+        labels: { severity: critical }
+        annotations:
+          summary: "Payroll push failed after all retries"
+          description: "Finalised attendance did not reach payroll; it is resent on the next successful push."
+
+      - alert: HrSyncFailed
+        expr: increase(facetrack_backend_hr_sync_failures_total[1d]) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "HR sync failed"
+
+  - name: facetrack-host
+    rules:
+      - alert: DiskAbove80Percent
+        expr: |
+          (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"}) > 0.8
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Disk {{ $labels.mountpoint }} above 80%"
+          description: "{{ $value | humanizePercentage }} used on {{ $labels.instance }}."
+
+      - alert: BackupFailed
+        expr: facetrack_backup_last_run_success == 0
+        labels: { severity: critical }
+        annotations:
+          summary: "Nightly database backup failed"
+
+      - alert: BackupMissing
+        expr: time() - facetrack_backup_last_success_timestamp_seconds > 26 * 3600
+        for: 30m
+        labels: { severity: critical }
+        annotations:
+          summary: "No successful database backup in the last 26 hours"
+
+      - alert: MediaMtxDown
+        expr: up{job="mediamtx"} == 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "MediaMTX is down: live view unavailable (attendance is not affected)"

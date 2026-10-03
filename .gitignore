@@ -42,7 +42,10 @@ recordings/
 # Engine local event buffer (may hold encrypted biometric payloads)
 engine/buffer/
 
-# Infra runtime data
+# Infra runtime data and secrets
+infra/env/*.env
+infra/monitoring/prometheus/targets/*.yml
+!infra/monitoring/prometheus/targets/*.example.yml
 infra/nginx/certs/*
 !infra/nginx/certs/.gitkeep
 infra/data/

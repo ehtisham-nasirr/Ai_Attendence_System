@@ -16,6 +16,10 @@ def beat_schedule() -> dict[str, dict[str, Any]]:
             "schedule": crontab(minute="*/10"),
         },
         "sync-camera-status": {"task": "app.worker.tasks.cameras.sync_camera_status", "schedule": 30.0},
+        "sync-live-paths": {
+            "task": "app.worker.tasks.cameras.sync_live_paths",
+            "schedule": crontab(minute="*/5"),
+        },
         "ensure-event-partitions": {
             "task": "app.worker.tasks.maintenance.ensure_event_partitions",
             "schedule": crontab(minute=7, hour="*/6"),

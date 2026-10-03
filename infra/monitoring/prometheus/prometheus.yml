@@ -1,0 +1,35 @@
+# Prometheus for FaceTrack (requirements §18). Engine nodes are listed in targets/engines.yml
+# (copy targets/engines.example.yml); add a node there and Prometheus picks it up within a minute.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: backend
+    static_configs:
+      - targets: ["backend:8000"]
+
+  - job_name: engine
+    file_sd_configs:
+      - files: ["/etc/prometheus/targets/engines.yml"]
+        refresh_interval: 1m
+
+  - job_name: mediamtx
+    static_configs:
+      - targets: ["mediamtx:9998"]
+
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

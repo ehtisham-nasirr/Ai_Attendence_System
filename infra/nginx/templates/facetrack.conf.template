@@ -1,0 +1,98 @@
+# Rendered by the nginx image entrypoint (envsubst of ${SERVER_NAME}).
+
+# Docker's DNS, re-resolved at runtime ("resolve"): a recreated container gets a new IP, and without this
+# Nginx would keep proxying to the old one (502) until it is restarted.
+resolver 127.0.0.11 valid=10s ipv6=off;
+
+upstream facetrack_backend { zone facetrack_backend 64k; server backend:8000 resolve; keepalive 16; }
+upstream facetrack_mediamtx { zone facetrack_mediamtx 64k; server mediamtx:8889 resolve; }
+upstream facetrack_grafana { zone facetrack_grafana 64k; server grafana:3000 resolve; }
+
+server {
+    listen 80;
+    server_name ${SERVER_NAME};
+    location = /healthz { access_log off; return 200 "ok"; }
+    location / { return 301 https://$host$request_uri; }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${SERVER_NAME};
+
+    # Certificates are mounted at runtime (infra/nginx/certs; never committed). See docs/runbook.md.
+    ssl_certificate     /etc/nginx/certs/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+
+    include /etc/nginx/templates/security_headers;
+    include /etc/nginx/templates/portal_csp;
+
+    root /usr/share/nginx/html;
+    client_max_body_size 210m;   # employee import ZIP limit is 200 MB (standards/14)
+
+    location = /healthz { access_log off; return 200 "ok"; }
+
+    # Internal backend endpoints and metrics are never exposed.
+    location /internal/ { return 404; }
+    location = /metrics { return 404; }
+
+    # HTTP/1.1 with an empty Connection header lets the upstream keepalive pool be used.
+    location = /api/v1/auth/login {
+        limit_req zone=auth burst=10 nodelay;
+        proxy_pass http://facetrack_backend;
+        include /etc/nginx/templates/proxy_params;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+    }
+
+    location /api/ {
+        proxy_pass http://facetrack_backend;
+        include /etc/nginx/templates/proxy_params;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_read_timeout 180s;
+    }
+
+    location /ws/ {
+        proxy_pass http://facetrack_backend;
+        include /etc/nginx/templates/proxy_params;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 1h;
+    }
+
+    # WebRTC (WHEP) signalling to MediaMTX; media itself flows over UDP 8189 (docs/runbook.md).
+    # Not /live/: that prefix would redirect the portal's /live page to MediaMTX.
+    location /webrtc/ {
+        proxy_pass http://facetrack_mediamtx/;
+        include /etc/nginx/templates/proxy_params;
+    }
+
+    # Grafana sends its own CSP; ours would block its scripts, so only the common headers apply here.
+    location /grafana/ {
+        include /etc/nginx/templates/security_headers;
+        proxy_pass http://facetrack_grafana;
+        include /etc/nginx/templates/proxy_params;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+    }
+
+    # Hashed build assets are immutable; the SPA shell is always revalidated.
+    location /assets/ {
+        include /etc/nginx/templates/security_headers;
+        include /etc/nginx/templates/portal_csp;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files $uri =404;
+    }
+    location / {
+        include /etc/nginx/templates/security_headers;
+        include /etc/nginx/templates/portal_csp;
+        add_header Cache-Control "no-cache";
+        try_files $uri /index.html;
+    }
+}

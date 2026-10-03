@@ -1,0 +1,40 @@
+# MediaMTX for live view only (requirements §7, §13 screen 3): WebRTC out, nothing else.
+# The backend adds one on-demand path per camera (cam-<id>) through the API; cameras are pulled only
+# while someone watches. Paths are re-applied every 5 minutes by the backend (MediaMTX keeps them in memory).
+
+logLevel: info
+
+# Every read is checked by the backend: a short-lived token bound to one camera path (Q25).
+authMethod: http
+authHTTPAddress: http://backend:8000/internal/mediamtx/auth
+# The control API and metrics are reachable only on the internal Docker network.
+authHTTPExclude:
+  - action: api
+  - action: metrics
+
+api: true
+apiAddress: :9997
+metrics: true
+metricsAddress: :9998
+
+rtsp: false
+rtmp: false
+hls: false
+srt: false
+playback: false
+moq: false
+
+webrtc: true
+webrtcAddress: :8889
+webrtcAllowOrigins: []
+webrtcTrustedProxies: ["0.0.0.0/0"]
+webrtcLocalUDPAddress: :8189
+webrtcIPsFromInterfaces: false
+# Set at runtime from MEDIAMTX_PUBLIC_HOST (MTX_WEBRTCADDITIONALHOSTS): the address browsers reach.
+webrtcAdditionalHosts: []
+
+pathDefaults:
+  sourceOnDemand: true
+  sourceOnDemandCloseAfter: 15s
+
+paths: {}

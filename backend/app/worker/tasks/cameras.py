@@ -78,3 +78,14 @@ def sync_camera_status() -> dict[str, int]:
         if int(str(key).rsplit(":", 1)[1]) not in online_ids:
             redis.delete(key)  # back online: alert again next time
     return summary
+
+
+@shared_task(name="app.worker.tasks.cameras.sync_live_paths")
+def sync_live_paths() -> int:
+    """Keeps MediaMTX's per-camera live-view paths in place (they are lost when MediaMTX restarts)."""
+    from app.domain.cameras import service as camera_service  # noqa: PLC0415
+
+    async def handle(db: Any) -> int:
+        return await camera_service.sync_live_paths(db)
+
+    return runtime.run_with_session(handle)

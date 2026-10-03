@@ -21,6 +21,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY backend/app app
 COPY backend/alembic alembic
 COPY backend/alembic.ini alembic.ini
+COPY backend/gunicorn.conf.py gunicorn.conf.py
 RUN uv sync --frozen --no-dev
 
 RUN useradd --system --uid 10001 facetrack && mkdir -p /srv/media && chown facetrack /srv/media
@@ -32,4 +33,4 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -fsS http://localho
 # Worker:  celery -A app.worker worker --loglevel=INFO --concurrency=4
 # Beat:    celery -A app.worker beat --loglevel=INFO --schedule /tmp/celerybeat-schedule
 # Migrate: alembic upgrade head
-CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--proxy-headers", "--forwarded-allow-ips", "*"]
+CMD ["gunicorn", "--config", "gunicorn.conf.py", "app.main:create_app()"]

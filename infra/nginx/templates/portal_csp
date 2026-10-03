@@ -1,0 +1,2 @@
+# camera=(self) above is for webcam enrollment. connect-src covers the API, the WebSocket and WHEP signalling.
+add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' wss://$host; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;

@@ -1,0 +1,27 @@
+# Rendered at start by render-and-run.sh from environment variables (no secrets in Git).
+global:
+  smtp_smarthost: "__SMTP_SMARTHOST__"
+  smtp_from: "__SMTP_FROM__"
+  smtp_auth_username: "__SMTP_USERNAME__"
+  smtp_auth_password_file: /alertmanager/smtp_password
+  smtp_require_tls: true
+
+route:
+  receiver: ops
+  group_by: [alertname, node, camera_id]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+inhibit_rules:
+  # A down engine explains its cameras' offline/lag alerts.
+  - source_matchers: [alertname="EngineDown"]
+    target_matchers: [alertname=~"CameraOffline|CameraLagHigh|CameraFpsBelowTarget"]
+    equal: [node]
+
+receivers:
+  - name: ops
+    email_configs:
+      - to: "__ALERT_EMAIL_TO__"
+        send_resolved: true
+__TEAMS_BLOCK__

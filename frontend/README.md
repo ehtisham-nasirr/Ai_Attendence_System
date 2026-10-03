@@ -78,4 +78,4 @@ E2E_USERNAME=admin E2E_PASSWORD=... npm run build && npm run e2e
 
 ## Deploy
 
-`frontend/Dockerfile` builds the static files and serves them with Nginx on port 8080 (`nginx-spa.conf`). TLS, `/api` and `/ws` are handled by the edge Nginx in `infra/`.
+The portal is built into the edge Nginx image (`infra/nginx/Dockerfile`, a Node build stage followed by `nginx:stable-alpine`). That image also serves TLS and proxies `/api`, `/ws`, `/webrtc` (WHEP to MediaMTX) and `/grafana`. See `docs/runbook.md`.

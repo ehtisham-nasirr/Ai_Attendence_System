@@ -18,6 +18,7 @@ DESCRIPTIONS = {
     "payroll_push_failures_total": "Failed payroll pushes (after retries)",
     "payroll_push_last_success_timestamp": "Unix time of the last successful payroll push",
     "hr_sync_failures_total": "Failed HR syncs",
+    "hr_sync_last_success_timestamp": "Unix time of the last successful HR sync",
     "cameras_offline": "Cameras currently offline",
     "retention_deleted_total": "Objects/rows deleted by the retention job",
 }
