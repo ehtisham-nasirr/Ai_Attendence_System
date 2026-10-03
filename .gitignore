@@ -22,7 +22,8 @@ playwright-report/
 test-results/
 
 # FaceTrack-specific: never commit models, recordings, face images or embeddings
-models/
+# (model *files* only: the code packages common/.../models and engine/app/models are tracked)
+/engine/models/
 *.onnx
 *.xml
 *.bin
@@ -32,8 +33,9 @@ recordings/
 *.ts
 !frontend/**/*.ts
 !frontend/*.ts
-snapshots/
-enroll/
+/snapshots/
+/enroll/
+/media/
 *.npy
 *.faiss
 
@@ -44,3 +46,6 @@ engine/buffer/
 infra/nginx/certs/*
 !infra/nginx/certs/.gitkeep
 infra/data/
+
+# Local Redis snapshots
+*.rdb

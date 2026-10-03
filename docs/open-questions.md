@@ -4,6 +4,20 @@ Per requirements §20 rule 7, anything unclear is listed here with the option ch
 
 Owner questions from requirements §21 (camera inventory, employee count, HR/payroll system, shift patterns, exit routes, model licence, servers, sub-streams, AD, retention approval, notification channel, go-live) remain open — they need the Phase 0 site survey.
 
+## Pending owner input (needed before production; work continued with the safe default)
+
+| # | Needs from the owner | Default used meanwhile |
+|---|---|---|
+| P1 | Model and licence decision (§9): buy an InsightFace commercial licence for ArcFace, or accept SFace. Needs the Phase 1 evaluation on consented ITRC data. | SFace (permissive). ArcFace implemented but unused. |
+| P2 | Production object store (ADR-0005): the open-source MinIO server is archived (no security updates; images/binaries withdrawn). Choose a shared volume/NFS or a maintained S3-compatible server. | Encrypted local volume shared by engine and backend. S3 backend ready. |
+| P3 | Liveness model: approve converting the official Silent-Face-Anti-Spoofing (Apache-2.0) weights to ONNX, and the spoof threshold (Q5). | Liveness off; cameras with liveness enabled refuse to start without a model. |
+| P4 | Consented evaluation data (gallery + labelled passes) and a reference server to run `scripts/evaluate.py` (TAR/FAR) and `scripts/benchmark_cpu.py`. | Accuracy unverified; CPU numbers are from the dev container only. |
+| P5 | Real camera/RTSP access, sub-stream support and GOP settings (Phase 0 site survey). | Synthetic clips only. |
+| P6 | HR/payroll API details (system, push or pull, field mapping, auth) for FR-12/FR-24/FR-35, and Active Directory details for FR-40. | Generic JSON adapters (Q32); LDAP tested against an in-memory mock only. |
+| P7 | SMTP server and Teams webhook for notifications (FR-32/FR-33, §18 alerts). | Disabled until configured. |
+| P8 | Confirm thresholds invented for unspecified gates: enrollment `min_quality` 0.5 / `min_blur_variance` 60, crop gate `min_crop_quality` 0.35 / `min_blur_variance` 40, daily summary time 10:45. | As listed; all in Settings. |
+| P9 | ByteTrack: `supervision` deprecated it (removed in 0.31). Approve moving to Roboflow's `trackers` package or an in-house IoU tracker before upgrading. | `supervision` pinned `<0.31`. |
+
 ## Decided by owner (2026-10-03)
 
 | # | Topic | Conflict / gap | Decision | Record |
@@ -42,7 +56,7 @@ Owner questions from requirements §21 (camera inventory, employee count, HR/pay
 | Q23 | Dismissing an unknown face | §13 has "Dismiss", §12 has no endpoint | `PATCH /api/v1/unknown-faces/{id}` with `review_status=dismissed` (plain update, no new action URL). |
 | Q24 | Camera connection test | FR-2 needs RTSP decoding, which only the engine has | Internal engine endpoint `POST /cameras/test` (not in §12.2) used by `POST /api/v1/cameras/{id}/test`. |
 | Q25 | Live view authorisation | MediaMTX must not be open | `GET /cameras/{id}/live` returns a short-lived signed token; MediaMTX checks it via the backend's internal `/internal/mediamtx/auth` endpoint (not exposed by Nginx). |
-| Q26 | Libraries not named in CLAUDE.md §1.2 | Needed as clients/glue for sanctioned components | `cryptography` (AES-256-GCM helper), `redis` (Redis client), `minio` (MinIO client), `psutil` (CPU load monitor), `prometheus-client` (metrics), `numpy`, `httpx`, `argon2-cffi`, `python-multipart` (FastAPI uploads), `Pillow` (upload validation, EXIF strip), `openpyxl` (reading Excel imports; XlsxWriter cannot read), `Jinja2` (WeasyPrint HTML templates), `asyncpg`, `sonner` (shadcn/ui toast), `axios`. No GPU or cloud packages. |
+| Q26 | Libraries not named in CLAUDE.md §1.2 | Needed as clients/glue for sanctioned components | `cryptography` (AES-256-GCM helper), `redis` (Redis client), `minio` (S3 client for the S3 storage backend, ADR-0005), `psutil` (CPU load monitor), `prometheus-client` (metrics), `numpy`, `httpx`, `argon2-cffi`, `python-multipart` (FastAPI uploads), `Pillow` (upload validation, EXIF strip), `openpyxl` (reading Excel imports; XlsxWriter cannot read), `Jinja2` (WeasyPrint HTML templates), `asyncpg`, `sonner` (shadcn/ui toast), `axios`. No GPU or cloud packages. |
 | Q27 | Unknown-face "Add to gallery" quality | FR-27 | The snapshot is re-validated by the engine `/embed` endpoint (same FR-9 rules) before it is added; small crops are rejected with the reason. |
 | Q28 | Report exports | standards/14: heavy exports run in Celery and return 202 | `GET /reports/{type}?format=xlsx|pdf` returns 202 with a job id; `GET /report-exports/{job_id}` gives status and `GET /report-exports/{job_id}/file` downloads (only for the requesting user, 24 h). |
 | Q29 | Monitoring containers | §18 lists Prometheus + Grafana only | Added `alertmanager` (email + Teams routing for §18 alerts), `node-exporter` (disk > 80% alert) and a `backup` job container (encrypted nightly `pg_dump`, §15). |
