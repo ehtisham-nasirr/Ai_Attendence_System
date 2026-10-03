@@ -9,7 +9,8 @@ COPY frontend/ ./
 RUN npm run build
 
 FROM nginx:stable-alpine
-RUN rm /etc/nginx/conf.d/default.conf
+# upgrade: pick up security fixes released after the base image was built (CI Trivy gate).
+RUN apk upgrade --no-cache && rm /etc/nginx/conf.d/default.conf
 COPY infra/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY infra/nginx/templates/ /etc/nginx/templates/
 COPY --from=portal /srv/frontend/dist /usr/share/nginx/html
