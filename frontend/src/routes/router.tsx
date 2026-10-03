@@ -25,6 +25,7 @@ const MonthlyRegisterPage = page(() => import("@/pages/register/MonthlyRegisterP
 const UnknownFacesPage = page(() => import("@/pages/unknown-faces/UnknownFacesPage"), "UnknownFacesPage");
 const EventLogPage = page(() => import("@/pages/events/EventLogPage"), "EventLogPage");
 const CorrectionsPage = page(() => import("@/pages/corrections/CorrectionsPage"), "CorrectionsPage");
+const ReportsPage = page(() => import("@/pages/reports/ReportsPage"), "ReportsPage");
 const SettingsPage = page(() => import("@/pages/settings/SettingsPage"), "SettingsPage");
 const AuditLogPage = page(() => import("@/pages/audit/AuditLogPage"), "AuditLogPage");
 const MyAttendancePage = page(() => import("@/pages/me/MyAttendancePage"), "MyAttendancePage");
@@ -76,6 +77,7 @@ export const routes = [
           { path: "/unknown-faces", element: guarded([Permission.unknownFacesReview], <UnknownFacesPage />) },
           { path: "/events", element: guarded([Permission.eventsVoid], <EventLogPage />) },
           { path: "/corrections", element: guarded([Permission.attendanceCorrect], <CorrectionsPage />) },
+          { path: "/reports", element: guarded([Permission.attendanceCorrect], <ReportsPage />) },
           {
             path: "/settings",
             element: guarded([Permission.settingsManage, Permission.usersManage], <SettingsPage />),

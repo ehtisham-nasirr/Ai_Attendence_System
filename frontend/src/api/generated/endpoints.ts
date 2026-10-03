@@ -6,6 +6,10 @@
  * OpenAPI spec version: 1.0.0
  */
 import type {
+  ApiClientCreate,
+  ApiClientUpdate,
+  ApiResponseApiClientCreated,
+  ApiResponseApiClientOut,
   ApiResponseAttendanceDayOut,
   ApiResponseAuthOptions,
   ApiResponseCameraLiveOut,
@@ -20,12 +24,16 @@ import type {
   ApiResponseEventOut,
   ApiResponseHolidayOut,
   ApiResponseImportAccepted,
+  ApiResponseIntegrationJobAccepted,
   ApiResponseJobOut,
   ApiResponseLeaveOut,
+  ApiResponseListApiClientOut,
   ApiResponseListFaceOut,
   ApiResponseListSettingItem,
   ApiResponseLocationOut,
   ApiResponseNoneType,
+  ApiResponseReportExportAccepted,
+  ApiResponseReportOut,
   ApiResponseShiftOut,
   ApiResponseUnknownFaceAssignResult,
   ApiResponseUnknownFaceOut,
@@ -46,8 +54,10 @@ import type {
   EmployeeUpdate,
   EventVoid,
   FaceImageParams,
+  GetReportParams,
   HolidayCreate,
   HolidayUpdate,
+  IntegrationAttendanceParams,
   LeaveCreate,
   ListAttendanceParams,
   ListAuditLogsParams,
@@ -75,6 +85,7 @@ import type {
   PaginatedResponseEmployeeOut,
   PaginatedResponseEventOut,
   PaginatedResponseHolidayOut,
+  PaginatedResponseIntegrationAttendanceOut,
   PaginatedResponseLeaveOut,
   PaginatedResponseLocationOut,
   PaginatedResponseRegisterRow,
@@ -83,6 +94,8 @@ import type {
   PaginatedResponseUserOut,
   PasswordResetConfirm,
   PasswordResetRequest,
+  PushPayrollParams,
+  ReportType,
   SettingsUpdate,
   ShiftCreate,
   ShiftUpdate,
@@ -1019,6 +1032,114 @@ export const rejectCorrection = (
     }
   
 /**
+ * @summary Report data, or an Excel/PDF export job
+ */
+export const getReport = (
+    reportType: ReportType,
+    params: GetReportParams,
+ options?: SecondParameter<typeof apiRequest<ApiResponseReportOut | ApiResponseReportExportAccepted>>,) => {
+      return apiRequest<ApiResponseReportOut | ApiResponseReportExportAccepted>(
+      {url: `/api/v1/reports/${reportType}`, method: 'GET',
+        params
+    },
+      options);
+    }
+  
+/**
+ * Only days already finalised by the day-close job are returned (FR-35); call after the day closes.
+Values are the stored attendance including approved corrections.
+ * @summary Finalised attendance for payroll (API key)
+ */
+export const integrationAttendance = (
+    params: IntegrationAttendanceParams,
+ options?: SecondParameter<typeof apiRequest<PaginatedResponseIntegrationAttendanceOut>>,) => {
+      return apiRequest<PaginatedResponseIntegrationAttendanceOut>(
+      {url: `/api/v1/integration/attendance`, method: 'GET',
+        params
+    },
+      options);
+    }
+  
+/**
+ * @summary API keys
+ */
+export const listApiClients = (
+    
+ options?: SecondParameter<typeof apiRequest<ApiResponseListApiClientOut>>,) => {
+      return apiRequest<ApiResponseListApiClientOut>(
+      {url: `/api/v1/api-clients`, method: 'GET'
+    },
+      options);
+    }
+  
+/**
+ * @summary Create an API key (shown once)
+ */
+export const createApiClient = (
+    apiClientCreate: ApiClientCreate,
+ options?: SecondParameter<typeof apiRequest<ApiResponseApiClientCreated>>,) => {
+      return apiRequest<ApiResponseApiClientCreated>(
+      {url: `/api/v1/api-clients`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: apiClientCreate
+    },
+      options);
+    }
+  
+/**
+ * @summary Update an API key
+ */
+export const updateApiClient = (
+    clientId: number,
+    apiClientUpdate: ApiClientUpdate,
+ options?: SecondParameter<typeof apiRequest<ApiResponseApiClientOut>>,) => {
+      return apiRequest<ApiResponseApiClientOut>(
+      {url: `/api/v1/api-clients/${clientId}`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: apiClientUpdate
+    },
+      options);
+    }
+  
+/**
+ * @summary Revoke an API key
+ */
+export const revokeApiClient = (
+    clientId: number,
+ options?: SecondParameter<typeof apiRequest<void>>,) => {
+      return apiRequest<void>(
+      {url: `/api/v1/api-clients/${clientId}`, method: 'DELETE'
+    },
+      options);
+    }
+  
+/**
+ * Without `date`: sends every finalised day changed since the last delivery (as the schedule does).
+ * @summary Send attendance to the payroll webhook now
+ */
+export const pushPayroll = (
+    params?: PushPayrollParams,
+ options?: SecondParameter<typeof apiRequest<ApiResponseIntegrationJobAccepted>>,) => {
+      return apiRequest<ApiResponseIntegrationJobAccepted>(
+      {url: `/api/v1/integration/payroll/push`, method: 'POST',
+        params
+    },
+      options);
+    }
+  
+/**
+ * @summary Run the HR sync now
+ */
+export const runHrSync = (
+    
+ options?: SecondParameter<typeof apiRequest<ApiResponseIntegrationJobAccepted>>,) => {
+      return apiRequest<ApiResponseIntegrationJobAccepted>(
+      {url: `/api/v1/integration/hr/sync`, method: 'POST'
+    },
+      options);
+    }
+  
+/**
  * @summary Today's counters
  */
 export const dashboardSummary = (
@@ -1174,6 +1295,14 @@ export type CorrectAttendanceResult = NonNullable<Awaited<ReturnType<typeof corr
 export type ListCorrectionsResult = NonNullable<Awaited<ReturnType<typeof listCorrections>>>
 export type ApproveCorrectionResult = NonNullable<Awaited<ReturnType<typeof approveCorrection>>>
 export type RejectCorrectionResult = NonNullable<Awaited<ReturnType<typeof rejectCorrection>>>
+export type GetReportResult = NonNullable<Awaited<ReturnType<typeof getReport>>>
+export type IntegrationAttendanceResult = NonNullable<Awaited<ReturnType<typeof integrationAttendance>>>
+export type ListApiClientsResult = NonNullable<Awaited<ReturnType<typeof listApiClients>>>
+export type CreateApiClientResult = NonNullable<Awaited<ReturnType<typeof createApiClient>>>
+export type UpdateApiClientResult = NonNullable<Awaited<ReturnType<typeof updateApiClient>>>
+export type RevokeApiClientResult = NonNullable<Awaited<ReturnType<typeof revokeApiClient>>>
+export type PushPayrollResult = NonNullable<Awaited<ReturnType<typeof pushPayroll>>>
+export type RunHrSyncResult = NonNullable<Awaited<ReturnType<typeof runHrSync>>>
 export type DashboardSummaryResult = NonNullable<Awaited<ReturnType<typeof dashboardSummary>>>
 export type GetSettingsResult = NonNullable<Awaited<ReturnType<typeof getSettings>>>
 export type UpdateSettingsResult = NonNullable<Awaited<ReturnType<typeof updateSettings>>>

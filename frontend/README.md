@@ -45,8 +45,8 @@ e2e/            Playwright tests against a running backend
 | 9 | Unknown faces | `/unknown-faces` | Grouped by similarity; assign (optionally add to gallery) or dismiss |
 | 10 | Event log | `/events` | Filters; void a recognition with a reason |
 | 11 | Corrections | `/corrections` | Pending, approved and rejected; old vs new; approve or reject with a comment |
-| 12 | Reports | — | Built with the report endpoints in Phase 4 |
-| 13 | Settings | `/settings` | General, organisation, shifts, holidays, recognition, retention, notifications, integration, users and roles |
+| 12 | Reports | `/reports` | Eight report types, filters, summary + chart + preview, Excel/PDF export job, scheduled emails (Admin) |
+| 13 | Settings | `/settings` | General, organisation, shifts, holidays, recognition, retention, notifications, integration (payroll/HR settings, API keys, run now), users and roles |
 | 14 | Audit log / My attendance | `/audit`, `/me` | Admin audit trail; employee self-service with calendar, totals and correction requests |
 
 The menu and routes follow the user's permissions from `/auth/me`. The API enforces the same rules, so hiding a screen is only a convenience.

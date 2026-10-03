@@ -2,6 +2,7 @@ import type { SettingItem } from "@/api/generated/model";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageHeader } from "@/components/common/PageHeader";
 import { HolidaysTab } from "@/components/settings/HolidaysTab";
+import { ApiKeysCard, IntegrationActionsCard } from "@/components/settings/IntegrationCard";
 import { OrganizationTab } from "@/components/settings/OrganizationTab";
 import { SettingsGroupForm } from "@/components/settings/SettingsGroupForm";
 import { ShiftsTab } from "@/components/settings/ShiftsTab";
@@ -88,8 +89,10 @@ export function SettingsPage() {
           <TabsContent value="notifications">
             <GroupCard items={items} groups={["notifications"]} />
           </TabsContent>
-          <TabsContent value="integration">
+          <TabsContent value="integration" className="space-y-4">
             <GroupCard items={items} groups={["integration"]} />
+            <ApiKeysCard />
+            <IntegrationActionsCard />
           </TabsContent>
           <TabsContent value="users" className="space-y-4">
             {canSettings && <GroupCard items={items} groups={["auth"]} title="Sign-in" />}

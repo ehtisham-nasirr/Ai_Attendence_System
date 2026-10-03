@@ -1,5 +1,4 @@
 import { LogOut, Monitor, Moon, Sun } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -21,7 +20,6 @@ import { roleLabel } from "@/lib/labels";
 export function UserMenu() {
   const { user, logout } = useAuth();
   const { choice, setChoice } = useTheme();
-  const navigate = useNavigate();
   if (!user) return null;
   return (
     <DropdownMenu>
@@ -52,11 +50,8 @@ export function UserMenu() {
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={() => {
-            void logout().then(() => navigate("/login", { replace: true }));
-          }}
-        >
+        {/* Signing out makes the session anonymous; the route guard then shows the sign-in page. */}
+        <DropdownMenuItem onSelect={() => void logout()}>
           <LogOut aria-hidden /> Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
