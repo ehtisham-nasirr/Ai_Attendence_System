@@ -112,7 +112,7 @@ async def test_live_view_token_is_checked_by_internal_auth(api: Api, db: AsyncSe
         )
     ).json()["data"]
     live = (await api.get(f"/api/v1/cameras/{camera['id']}/live")).json()["data"]
-    assert live["webrtc_url"] == f"/live/cam-{camera['id']}/whep"
+    assert live["webrtc_url"] == f"/webrtc/cam-{camera['id']}/whep"
     path = f"cam-{camera['id']}"
     allowed = await api.post(
         "/internal/mediamtx/auth", json={"action": "read", "path": path, "query": f"token={live['token']}"}

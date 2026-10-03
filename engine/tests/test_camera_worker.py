@@ -230,6 +230,18 @@ def test_fr4_watchdog_restarts_a_silent_decoder(engine_settings: EngineSettings,
     assert h.source.restarts == 1
 
 
+def test_watchdog_leaves_a_disconnected_decoder_to_its_backoff(
+    engine_settings: EngineSettings, cipher: Cipher
+) -> None:
+    h = Harness(engine_settings, cipher, ["A"])
+    h.run(1, block=False)
+    h.source.connected = False  # camera offline: the decoder is reconnecting by itself
+    for _ in range(5):
+        h.clock += 6.0
+        h.worker.tick()
+    assert h.source.restarts == 0
+
+
 def test_status_report_contents(engine_settings: EngineSettings, cipher: Cipher) -> None:
     h = Harness(engine_settings, cipher, ["A"])
     h.run(1, block=False)

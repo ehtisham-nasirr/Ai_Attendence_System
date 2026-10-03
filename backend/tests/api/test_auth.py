@@ -1,5 +1,6 @@
 """Authentication, sessions, CSRF, lockout, rate limits, password reset (FR-40, §15, standards/06)."""
 
+import jwt
 from conftest import PASSWORD, Api, make_user
 from facetrack_common.constants import UserRole
 from facetrack_common.models import AuditLog, User
@@ -7,7 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.security import ACCESS_COOKIE, CSRF_COOKIE
+from app.core.redis import get_async_redis
+from app.core.security import ACCESS_COOKIE, CSRF_COOKIE, decode_token, issue_access_token
 from app.domain.auth.service import password_reset_token
 
 
@@ -73,6 +75,32 @@ async def test_logout_revokes_the_session(api: Api, db: AsyncSession) -> None:
     token = api.client.cookies.get(ACCESS_COOKIE)
     assert (await api.post("/api/v1/auth/logout")).status_code == 200
     api.client.cookies.set(ACCESS_COOKIE, token or "")
+    assert (await api.get("/api/v1/auth/me")).status_code == 401
+
+
+async def test_sliding_refresh_keeps_parallel_requests_signed_in(api: Api, db: AsyncSession) -> None:
+    """A refresh must not sign out requests already sent with the old cookie (dashboard loads in parallel)."""
+    user = await make_user(db, UserRole.HR_ADMIN, "hr1")
+    await api.login("hr1")
+    settings = get_settings()
+    old_token, _ = issue_access_token(user, settings)
+    claims = decode_token(old_token, settings, "access")
+    # Make the token look 10 minutes old so the next request refreshes it.
+    claims["iat"] = int(claims["iat"]) - 600
+    old_token = jwt.encode(claims, settings.jwt_secret.get_secret_value(), settings.jwt_algorithm)
+    api.client.cookies.set(ACCESS_COOKIE, old_token)
+    first = await api.get("/api/v1/auth/me")
+    assert first.status_code == 200
+    assert any(c.startswith(f"{ACCESS_COOKIE}=") for c in first.headers.get_list("set-cookie"))
+
+    # A second request still carrying the old cookie (sent before the first response arrived) works.
+    api.client.cookies.set(ACCESS_COOKIE, old_token)
+    assert (await api.get("/api/v1/auth/me")).status_code == 200
+    # Once the grace period is over the old token is refused; re-use never extends the grace.
+    key = f"revoked:{claims['jti']}"
+    grace_end = int(await get_async_redis().get(key))
+    await get_async_redis().set(key, str(grace_end - 61))
+    api.client.cookies.set(ACCESS_COOKIE, old_token)
     assert (await api.get("/api/v1/auth/me")).status_code == 401
 
 

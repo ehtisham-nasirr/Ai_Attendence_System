@@ -19,7 +19,15 @@ from app.core.db import get_sessionmaker
 from app.core.exceptions import Unauthorized
 from app.core.metrics import WS_CONNECTIONS
 from app.core.redis import get_async_redis
-from app.core.security import ACCESS_COOKIE, DataScope, Permission, data_scope, decode_token, has_permission
+from app.core.security import (
+    ACCESS_COOKIE,
+    DataScope,
+    Permission,
+    data_scope,
+    decode_token,
+    has_permission,
+    is_revoked,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -35,7 +43,7 @@ async def _authenticate(websocket: WebSocket) -> tuple[User, DataScope] | None:
         claims = decode_token(token, get_settings(), "access")
     except Unauthorized:
         return None
-    if await get_async_redis().exists(f"revoked:{claims['jti']}"):
+    if await is_revoked(claims):
         return None
     async with get_sessionmaker()() as db:
         user = await db.scalar(select(User).where(User.id == int(claims["sub"]), User.deleted_at.is_(None)))

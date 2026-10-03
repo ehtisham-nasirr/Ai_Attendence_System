@@ -51,7 +51,7 @@ class Settings(BaseSettings):
 
     # Live view (MediaMTX). Public URLs are relative paths proxied by Nginx.
     mediamtx_api_url: str = "http://mediamtx:9997"
-    mediamtx_webrtc_public_path: str = "/live"
+    mediamtx_webrtc_public_path: str = "/webrtc"  # Nginx prefix for WHEP; distinct from the /live page
     live_token_seconds: int = 120
 
     # Uploads (standards/14)

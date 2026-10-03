@@ -34,6 +34,7 @@ CSRF_COOKIE = "ft_csrf"
 CSRF_HEADER = "X-CSRF-Token"
 API_KEY_HEADER = "X-API-Key"
 _REFRESH_AFTER = timedelta(minutes=5)
+_ROTATION_GRACE_S = 60  # the old token keeps working this long after a sliding refresh
 _UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 _hasher = PasswordHasher()
 
@@ -171,9 +172,23 @@ def clear_session_cookies(response: Response) -> None:
     response.delete_cookie(CSRF_COOKIE, path="/")
 
 
-async def revoke_token(claims: dict[str, Any]) -> None:
-    ttl = max(1, int(claims["exp"]) - int(datetime.now(UTC).timestamp()))
-    await get_async_redis().set(f"revoked:{claims['jti']}", "1", ex=ttl)
+async def revoke_token(claims: dict[str, Any], grace_seconds: int = 0) -> None:
+    """Revokes a session token. The stored value is the Unix time the revocation takes effect.
+
+    Sign-out revokes at once. A sliding refresh revokes the old token after a short grace, set only once
+    (NX), so requests the browser already sent in parallel with the old cookie are not signed out.
+    """
+    now = int(datetime.now(UTC).timestamp())
+    ttl = max(1, int(claims["exp"]) - now)
+    if grace_seconds:
+        await get_async_redis().set(f"revoked:{claims['jti']}", str(now + grace_seconds), ex=ttl, nx=True)
+    else:
+        await get_async_redis().set(f"revoked:{claims['jti']}", str(now), ex=ttl)
+
+
+async def is_revoked(claims: dict[str, Any]) -> bool:
+    effective = await get_async_redis().get(f"revoked:{claims['jti']}")
+    return effective is not None and int(effective) <= int(datetime.now(UTC).timestamp())
 
 
 # --------------------------------------------------------------------------- current user
@@ -201,7 +216,7 @@ async def get_current_user(
     if not token:
         raise Unauthorized()
     claims = decode_token(token, settings, "access")
-    if await get_async_redis().exists(f"revoked:{claims['jti']}"):
+    if await is_revoked(claims):
         raise Unauthorized("Your session has ended. Please sign in again.")
     _check_csrf(request, settings)
     user = await db.scalar(select(User).where(User.id == int(claims["sub"]), User.deleted_at.is_(None)))
@@ -212,7 +227,7 @@ async def get_current_user(
     issued = datetime.fromtimestamp(int(claims["iat"]), UTC)
     if datetime.now(UTC) - issued > _REFRESH_AFTER:
         new_token, expires = issue_access_token(user, settings)
-        await revoke_token(claims)
+        await revoke_token(claims, grace_seconds=_ROTATION_GRACE_S)
         set_session_cookies(response, new_token, expires, settings)
     return user
 

@@ -246,6 +246,10 @@ class CameraWorker:
         self._source.switch_source(self.config.main_url if use_main else self.config.substream_url)
 
     def _watchdog(self, now: float) -> None:
+        # Only a connected-but-silent stream needs a restart; while disconnected, the decoder is already
+        # reconnecting with its own backoff (restarting it then would only add a warning every few seconds).
+        if not self._source.connected:
+            return
         last = self._buffer.last_write_monotonic
         reference = last if last is not None else self._last_watchdog
         if now - reference > self._settings.watchdog_no_frame_s and now - self._last_watchdog > (
