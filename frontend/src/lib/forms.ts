@@ -11,13 +11,18 @@ export function showFormError<T extends FieldValues>(form: UseFormReturn<T>, err
   const apiError = toApiError(error);
   const fields = Object.keys(form.getValues());
   let placed = false;
+  const unplaced: string[] = [];
   for (const [field, messages] of Object.entries(apiError.fieldErrors)) {
     if (fields.includes(field)) {
       form.setError(field as Path<T>, { type: "server", message: messages.join(" ") });
       placed = true;
+    } else {
+      unplaced.push(...messages);
     }
   }
-  if (!placed) toast.error(apiError.message);
+  // Errors that belong to no input (e.g. "Check-out must be after check-in") must still be readable.
+  if (unplaced.length) toast.error(unplaced.join(" "));
+  else if (!placed) toast.error(apiError.message);
   return apiError;
 }
 

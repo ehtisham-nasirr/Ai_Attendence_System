@@ -199,6 +199,24 @@ async def test_fr25_manual_entry_for_a_missing_day(make_api, db: AsyncSession) -
     ).status_code == 403
 
 
+async def test_manual_entry_with_check_out_before_check_in_explains_why(make_api, db: AsyncSession) -> None:  # type: ignore[no-untyped-def]
+    """Seen in the owner's test: 11:20 PM in, 04:21 PM out. The message must say what is wrong."""
+    world = await _world(db)
+    hr = await make_api(world["hr"])
+    response = await hr.post(
+        "/api/v1/attendance",
+        json={
+            "employee_id": world["sales_emp"].id,
+            "work_date": "2026-10-06",
+            "check_in_at": "2026-10-06T23:20:00+05:00",
+            "check_out_at": "2026-10-06T16:21:00+05:00",
+            "reason": "missed by camera",
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["errors"]["body"] == ["Check-out must be after check-in"]
+
+
 async def test_corrections_list_tabs_are_scoped(make_api, db: AsyncSession) -> None:  # type: ignore[no-untyped-def]
     world = await _world(db)
     employee = await make_api(world["employee_user"])

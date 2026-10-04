@@ -12,6 +12,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 logger = logging.getLogger(__name__)
 
 
+def _readable(message: str) -> str:
+    """Pydantic prefixes validator messages with "Value error, "; users only need the sentence."""
+    text = message.removeprefix("Value error, ")
+    return text[:1].upper() + text[1:]
+
+
 class DomainError(Exception):
     status_code = 400
     default_message = "Unable to process request."
@@ -75,7 +81,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         errors: dict[str, Any] = {}
         for error in exc.errors():
             location = [str(part) for part in error["loc"] if part not in ("body", "query", "path")]
-            errors.setdefault(".".join(location) or "body", []).append(error["msg"])
+            errors.setdefault(".".join(location) or "body", []).append(_readable(error["msg"]))
         return _envelope(422, "Validation failed.", errors)
 
     @app.exception_handler(StarletteHTTPException)
