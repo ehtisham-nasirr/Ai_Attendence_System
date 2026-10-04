@@ -14,6 +14,10 @@ from facetrack_common.storage import ObjectStore, StorageError, create_object_st
 from app.core.config import get_settings
 from app.core.crypto import get_cipher
 
+# Engine snapshot objects are `snapshots/YYYY/MM/DD/<event_id>.jpg` (§10.2). Only objects under this
+# prefix are ever deleted because of an event, so an event can never remove an enrollment photo.
+EVENT_SNAPSHOT_PREFIX = "snapshots/"
+
 
 @lru_cache
 def get_store() -> ObjectStore:

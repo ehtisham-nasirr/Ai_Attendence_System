@@ -30,6 +30,7 @@ from app.domain.audit import service as audit
 from app.domain.settings import service as settings_service
 from app.repositories import attendance_repo, camera_repo, employee_repo, event_repo
 from app.schemas.attendance import AttendanceDayOut, ManualAttendanceCreate
+from app.services import storage
 
 logger = logging.getLogger(__name__)
 
@@ -166,11 +167,22 @@ async def apply_recognition(
     db: AsyncSession, employee: Employee, captured_at: datetime, values: dict[str, Any]
 ) -> AttendanceDay | None:
     """FR-20: called by the event processor inside its transaction. Inactive employees are ignored."""
+    days = await apply_recognitions(db, employee, [captured_at], values)
+    return days[0] if days else None
+
+
+async def apply_recognitions(
+    db: AsyncSession, employee: Employee, instants: list[datetime], values: dict[str, Any]
+) -> list[AttendanceDay]:
+    """`apply_recognition` for several sightings of one employee (bulk review, FR-27): each affected
+    day is rebuilt once. Caller owns the transaction. Inactive employees are ignored."""
     if employee.status != EmployeeStatus.ACTIVE or employee.deleted_at is not None:
-        return None
+        return []
     ctx = employee_context(employee, values)
-    work_date = rules.work_date_for(captured_at, ctx.shift, ctx.tz, ctx.settings)
-    return await recompute_day(db, employee, work_date, values)
+    work_dates = sorted(
+        {rules.work_date_for(instant, ctx.shift, ctx.tz, ctx.settings) for instant in instants}
+    )
+    return [await recompute_day(db, employee, work_date, values) for work_date in work_dates]
 
 
 async def work_date_of(db: AsyncSession, employee: Employee, instant: datetime) -> date:
@@ -191,6 +203,7 @@ async def close_due_days(db: AsyncSession, now: datetime | None = None, lookback
     now = now or datetime.now(UTC)
     values = await settings_service.resolved(db)
     finalised = 0
+    pruned_photos = 0
     for employee in await employee_repo.active_employees(db):
         ctx = employee_context(employee, values)
         today = now.astimezone(ctx.tz).date()
@@ -206,9 +219,59 @@ async def close_due_days(db: AsyncSession, now: datetime | None = None, lookback
             if existing is not None and existing.finalized_at is not None:
                 continue
             async with transaction(db):
-                await recompute_day(db, employee, work_date, values, finalize=True)
+                day = await recompute_day(db, employee, work_date, values, finalize=True)
+                pruned = await _prune_duplicate_photos(db, employee, day, values)
+            storage.delete_quietly(pruned)  # after the commit: a rollback keeps the photos
             finalised += 1
+            pruned_photos += len(pruned)
+    if pruned_photos:
+        async with transaction(db):
+            await audit.record(
+                db,
+                None,
+                "retention.delete",
+                "retention",
+                None,
+                new={"duplicate_event_snapshots": pruned_photos},
+            )
     return finalised
+
+
+async def _prune_duplicate_photos(
+    db: AsyncSession, employee: Employee, day: AttendanceDay, values: dict[str, Any]
+) -> list[str]:
+    """Q59: when a day closes, drops the photos of its repeat sightings and returns the object names.
+
+    Per camera, a sighting inside the §10.3 cooldown after the last photo kept on that camera that
+    work day loses its photo. The event row stays. The day's check-in and check-out events, voided
+    events and events that came from an unknown face (the face keeps that object) always keep theirs.
+    Running at close, after every in-order or late event of the day is in, makes the result
+    independent of arrival order and of the work-day boundary.
+    """
+    ctx = employee_context(employee, values)
+    cooldown = timedelta(minutes=ctx.settings.duplicate_cooldown_min)
+    if cooldown <= timedelta(0):
+        return []
+    start, end = day_window(day.work_date, ctx)
+    counted = {day.check_in_event_id, day.check_out_event_id}
+    last_kept: dict[int, datetime] = {}
+    pruned: list[str] = []
+    for event_id, captured_at, camera_id, path, from_unknown in await event_repo.snapshot_sightings(
+        db, employee.id, start, end
+    ):
+        previous = last_kept.get(camera_id)
+        if (
+            previous is not None
+            and captured_at - previous < cooldown
+            and event_id not in counted
+            and not from_unknown
+            and path.startswith(storage.EVENT_SNAPSHOT_PREFIX)
+        ):
+            pruned.append(path)
+        else:
+            last_kept[camera_id] = captured_at
+    await event_repo.clear_snapshot_paths(db, pruned)
+    return pruned
 
 
 async def recompute_date(db: AsyncSession, work_date: date) -> int:

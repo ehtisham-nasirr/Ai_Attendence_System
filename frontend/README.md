@@ -42,7 +42,7 @@ e2e/            Playwright tests against a running backend
 | 6 | Cameras | `/cameras` | Card or table view; add/edit drawer with connection test, snapshot, ROI editor, FPS and threshold sliders |
 | 7 | Attendance | `/attendance` | Daily table with snapshot on hover, correction dialog, manual entry |
 | 8 | Monthly register | `/register` | Employee × day letters and totals (from `/attendance/register`) |
-| 9 | Unknown faces | `/unknown-faces` | Grouped by similarity; assign (optionally add to gallery) or dismiss |
+| 9 | Unknown faces | `/unknown-faces` | One card per group of similar faces over the whole queue (`/unknown-faces/groups`; pages count groups). Assign the faces you keep ticked (optionally add one to the gallery) or dismiss the whole card, in one request (`/unknown-faces/bulk`) |
 | 10 | Event log | `/events` | Filters; void a recognition with a reason |
 | 11 | Corrections | `/corrections` | Pending, approved and rejected; old vs new; approve or reject with a comment |
 | 12 | Reports | `/reports` | Eight report types, filters, summary + chart + preview, Excel/PDF export job, scheduled emails (Admin) |

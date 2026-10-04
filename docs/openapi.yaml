@@ -1854,6 +1854,134 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/unknown-faces/groups:
+    get:
+      tags:
+      - recognition
+      summary: Unknown-face review queue, one card per person
+      description: '§13 screen 9: faces that look like the same person are grouped
+        over the whole queue, so one
+
+        person is one card on one page. Pagination counts groups. `sort`: `last_seen_at`
+        (default
+
+        `-last_seen_at`), `first_seen_at` or `face_count`. `grouping.truncated` is
+        true when only the newest
+
+        `grouping.max_faces` faces were grouped. Viewing is audit-logged.'
+      operationId: list_unknown_face_groups
+      parameters:
+      - name: review_status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/ReviewStatus'
+          - type: 'null'
+          default: pending
+          title: Review Status
+      - name: camera_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Camera Id
+      - name: date_from
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Date From
+      - name: date_to
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Date To
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: sort
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^-?[a-z_]+$
+          - type: 'null'
+          title: Sort
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnknownFaceGroupsResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/unknown-faces/bulk:
+    post:
+      tags:
+      - recognition
+      summary: Assign or dismiss many unknown faces at once
+      description: 'FR-27 for a whole group card. `assign` needs the same permission
+        as the single assign (Admin,
+
+        HR); `dismiss` is open to every reviewer. Faces that are gone or already reviewed
+        are skipped and
+
+        listed in `skipped`; the rest are decided in one transaction. With `add_to_gallery`,
+        only the first
+
+        assigned face with a snapshot is offered to the gallery, after the FR-9 checks
+        (requires consent).'
+      operationId: bulk_review_unknown_faces
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnknownFaceBulkAction'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_UnknownFaceBulkResult_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/unknown-faces/{unknown_id}/snapshot:
     get:
       tags:
@@ -3294,6 +3422,22 @@ components:
       - message
       - data
       title: ApiResponse[UnknownFaceAssignResult]
+    ApiResponse_UnknownFaceBulkResult_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/UnknownFaceBulkResult'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[UnknownFaceBulkResult]
     ApiResponse_UnknownFaceOut_:
       properties:
         success:
@@ -6163,6 +6307,198 @@ components:
       - attendance_updated
       - added_to_gallery
       title: UnknownFaceAssignResult
+    UnknownFaceBulkAction:
+      properties:
+        face_ids:
+          items:
+            type: integer
+            minimum: 1.0
+          type: array
+          maxItems: 5000
+          minItems: 1
+          title: Face Ids
+        action:
+          type: string
+          enum:
+          - assign
+          - dismiss
+          title: Action
+        employee_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Employee Id
+        add_to_gallery:
+          type: boolean
+          title: Add To Gallery
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - face_ids
+      - action
+      title: UnknownFaceBulkAction
+      description: 'One decision for many faces (a whole group): assign to an employee
+        or dismiss (FR-27).'
+    UnknownFaceBulkResult:
+      properties:
+        action:
+          type: string
+          enum:
+          - assign
+          - dismiss
+          title: Action
+        processed_ids:
+          items:
+            type: integer
+          type: array
+          title: Processed Ids
+        skipped:
+          items:
+            $ref: '#/components/schemas/UnknownFaceBulkSkipped'
+          type: array
+          title: Skipped
+        attendance_updated:
+          type: boolean
+          title: Attendance Updated
+        added_to_gallery:
+          type: boolean
+          title: Added To Gallery
+        gallery_face_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Gallery Face Id
+        gallery_rejection_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Gallery Rejection Reason
+      type: object
+      required:
+      - action
+      - processed_ids
+      - skipped
+      - attendance_updated
+      - added_to_gallery
+      title: UnknownFaceBulkResult
+    UnknownFaceBulkSkipped:
+      properties:
+        id:
+          type: integer
+          title: Id
+        reason:
+          type: string
+          enum:
+          - not_found
+          - already_reviewed
+          title: Reason
+      type: object
+      required:
+      - id
+      - reason
+      title: UnknownFaceBulkSkipped
+    UnknownFaceGroupOut:
+      properties:
+        group_id:
+          type: integer
+          title: Group Id
+        face_count:
+          type: integer
+          title: Face Count
+        pending_count:
+          type: integer
+          title: Pending Count
+        first_seen_at:
+          type: string
+          title: First Seen At
+        last_seen_at:
+          type: string
+          title: Last Seen At
+        camera_ids:
+          items:
+            type: integer
+          type: array
+          title: Camera Ids
+        camera_names:
+          items:
+            type: string
+          type: array
+          title: Camera Names
+        face_ids:
+          items:
+            type: integer
+          type: array
+          title: Face Ids
+        samples:
+          items:
+            $ref: '#/components/schemas/UnknownFaceOut'
+          type: array
+          title: Samples
+      type: object
+      required:
+      - group_id
+      - face_count
+      - pending_count
+      - first_seen_at
+      - last_seen_at
+      - camera_ids
+      - camera_names
+      - face_ids
+      - samples
+      title: UnknownFaceGroupOut
+      description: 'One card of the review screen: faces that look like the same person
+        (§13 screen 9).'
+    UnknownFaceGrouping:
+      properties:
+        faces_total:
+          type: integer
+          title: Faces Total
+        faces_grouped:
+          type: integer
+          title: Faces Grouped
+        max_faces:
+          type: integer
+          title: Max Faces
+        truncated:
+          type: boolean
+          title: Truncated
+      type: object
+      required:
+      - faces_total
+      - faces_grouped
+      - max_faces
+      - truncated
+      title: UnknownFaceGrouping
+      description: How much of the queue the groups cover. `truncated` is true when
+        older faces were left out.
+    UnknownFaceGroupsResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          items:
+            $ref: '#/components/schemas/UnknownFaceGroupOut'
+          type: array
+          title: Data
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        grouping:
+          $ref: '#/components/schemas/UnknownFaceGrouping'
+      type: object
+      required:
+      - message
+      - data
+      - pagination
+      - grouping
+      title: UnknownFaceGroupsResponse
+      description: The standard list envelope (standards/04) plus `grouping`, so a
+        cut-off is never silent.
     UnknownFaceOut:
       properties:
         id:

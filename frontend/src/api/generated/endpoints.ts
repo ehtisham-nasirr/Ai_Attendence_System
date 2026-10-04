@@ -36,6 +36,7 @@ import type {
   ApiResponseReportOut,
   ApiResponseShiftOut,
   ApiResponseUnknownFaceAssignResult,
+  ApiResponseUnknownFaceBulkResult,
   ApiResponseUnknownFaceOut,
   ApiResponseUserOut,
   ApiResponseUserProfile,
@@ -70,6 +71,7 @@ import type {
   ListLeavesParams,
   ListLocationsParams,
   ListShiftsParams,
+  ListUnknownFaceGroupsParams,
   ListUnknownFacesParams,
   ListUsersParams,
   LocationCreate,
@@ -101,6 +103,8 @@ import type {
   ShiftUpdate,
   TestCameraParams,
   UnknownFaceAssign,
+  UnknownFaceBulkAction,
+  UnknownFaceGroupsResponse,
   UnknownFaceUpdate,
   UserCreate,
   UserUpdate
@@ -873,6 +877,41 @@ export const listUnknownFaces = (
     }
   
 /**
+ * §13 screen 9: faces that look like the same person are grouped over the whole queue, so one
+person is one card on one page. Pagination counts groups. `sort`: `last_seen_at` (default
+`-last_seen_at`), `first_seen_at` or `face_count`. `grouping.truncated` is true when only the newest
+`grouping.max_faces` faces were grouped. Viewing is audit-logged.
+ * @summary Unknown-face review queue, one card per person
+ */
+export const listUnknownFaceGroups = (
+    params?: ListUnknownFaceGroupsParams,
+ options?: SecondParameter<typeof apiRequest<UnknownFaceGroupsResponse>>,) => {
+      return apiRequest<UnknownFaceGroupsResponse>(
+      {url: `/api/v1/unknown-faces/groups`, method: 'GET',
+        params
+    },
+      options);
+    }
+  
+/**
+ * FR-27 for a whole group card. `assign` needs the same permission as the single assign (Admin,
+HR); `dismiss` is open to every reviewer. Faces that are gone or already reviewed are skipped and
+listed in `skipped`; the rest are decided in one transaction. With `add_to_gallery`, only the first
+assigned face with a snapshot is offered to the gallery, after the FR-9 checks (requires consent).
+ * @summary Assign or dismiss many unknown faces at once
+ */
+export const bulkReviewUnknownFaces = (
+    unknownFaceBulkAction: UnknownFaceBulkAction,
+ options?: SecondParameter<typeof apiRequest<ApiResponseUnknownFaceBulkResult>>,) => {
+      return apiRequest<ApiResponseUnknownFaceBulkResult>(
+      {url: `/api/v1/unknown-faces/bulk`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: unknownFaceBulkAction
+    },
+      options);
+    }
+  
+/**
  * @summary Unknown face snapshot
  */
 export const unknownSnapshot = (
@@ -1284,6 +1323,8 @@ export type ListEventsResult = NonNullable<Awaited<ReturnType<typeof listEvents>
 export type VoidEventResult = NonNullable<Awaited<ReturnType<typeof voidEvent>>>
 export type EventSnapshotResult = NonNullable<Awaited<ReturnType<typeof eventSnapshot>>>
 export type ListUnknownFacesResult = NonNullable<Awaited<ReturnType<typeof listUnknownFaces>>>
+export type ListUnknownFaceGroupsResult = NonNullable<Awaited<ReturnType<typeof listUnknownFaceGroups>>>
+export type BulkReviewUnknownFacesResult = NonNullable<Awaited<ReturnType<typeof bulkReviewUnknownFaces>>>
 export type UnknownSnapshotResult = NonNullable<Awaited<ReturnType<typeof unknownSnapshot>>>
 export type AssignUnknownResult = NonNullable<Awaited<ReturnType<typeof assignUnknown>>>
 export type UpdateUnknownResult = NonNullable<Awaited<ReturnType<typeof updateUnknown>>>

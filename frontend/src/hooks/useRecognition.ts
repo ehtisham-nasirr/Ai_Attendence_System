@@ -1,8 +1,13 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { assignUnknown, listEvents, listUnknownFaces, updateUnknown, voidEvent } from "@/api/generated/endpoints";
-import { UnknownFaceUpdateValue, type ListEventsParams, type ListUnknownFacesParams } from "@/api/generated/model";
+import { bulkReviewUnknownFaces, listEvents, listUnknownFaceGroups, voidEvent } from "@/api/generated/endpoints";
+import type {
+  ApiResponseUnknownFaceBulkResult,
+  ListEventsParams,
+  ListUnknownFaceGroupsParams,
+  UnknownFaceBulkAction,
+} from "@/api/generated/model";
 import { fetchAllPages } from "@/lib/query";
 
 export function useEvents(params: ListEventsParams) {
@@ -30,37 +35,42 @@ export function useVoidEvent() {
   });
 }
 
-export function useUnknownFaces(params: ListUnknownFacesParams) {
+/** §13 screen 9: one card per group of similar faces over the whole queue; pages count groups. */
+export function useUnknownFaceGroups(params: ListUnknownFaceGroupsParams) {
   return useQuery({
-    queryKey: ["unknown-faces", params],
-    queryFn: () => listUnknownFaces(params),
+    // Starts with "unknown-faces", so /ws/live invalidations for new unknown faces refresh it.
+    queryKey: ["unknown-faces", "groups", params],
+    queryFn: () => listUnknownFaceGroups(params),
     placeholderData: keepPreviousData,
   });
 }
 
+function skippedDescription(result: ApiResponseUnknownFaceBulkResult): string | null {
+  const { skipped } = result.data;
+  if (skipped.length === 0) return null;
+  const reviewed = skipped.filter((face) => face.reason === "already_reviewed").length;
+  const missing = skipped.length - reviewed;
+  const parts: string[] = [];
+  if (reviewed > 0) parts.push(`${reviewed} already reviewed`);
+  if (missing > 0) parts.push(`${missing} not found`);
+  return `Skipped faces: ${parts.join(", ")}.`;
+}
+
+/** FR-27: one decision (assign or dismiss) for the faces of a group card. */
 export function useUnknownFaceActions() {
   const queryClient = useQueryClient();
-  const refresh = () => {
-    void queryClient.invalidateQueries({ queryKey: ["unknown-faces"] });
-    void queryClient.invalidateQueries({ queryKey: ["attendance"] });
-    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-  };
   return {
-    assign: useMutation({
-      mutationFn: ({ id, employeeId, addToGallery }: { id: number; employeeId: number; addToGallery: boolean }) =>
-        assignUnknown(id, { employee_id: employeeId, add_to_gallery: addToGallery }),
+    bulk: useMutation({
+      mutationFn: (body: UnknownFaceBulkAction) => bulkReviewUnknownFaces(body),
       onSuccess: (result) => {
-        const reason = result.data.gallery_rejection_reason;
-        if (reason) toast.warning(`Assigned, but not added to the gallery: ${reason}`);
+        const description = skippedDescription(result);
+        if (description) toast.warning(result.message, { description });
         else toast.success(result.message);
-        refresh();
-      },
-    }),
-    dismiss: useMutation({
-      mutationFn: (id: number) => updateUnknown(id, UnknownFaceUpdateValue),
-      onSuccess: () => {
-        toast.success("Unknown face dismissed.");
-        refresh();
+        const reason = result.data.gallery_rejection_reason;
+        if (reason) toast.warning(`Assigned, but not added to the gallery: ${reason.replaceAll("_", " ")}`);
+        void queryClient.invalidateQueries({ queryKey: ["unknown-faces"] });
+        void queryClient.invalidateQueries({ queryKey: ["attendance"] });
+        void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       },
     }),
   };

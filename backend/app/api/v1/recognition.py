@@ -10,7 +10,7 @@ from fastapi import APIRouter
 from fastapi.responses import Response
 
 from app.api.deps import DbDep, PageDep, ScopeDep, jpeg_response
-from app.core.exceptions import NotFound
+from app.core.exceptions import NotFound, PermissionDenied
 from app.core.responses import ok, paginated
 from app.core.security import CurrentUser, Permission, has_permission, require_permission
 from app.domain.recognition import service
@@ -20,6 +20,10 @@ from app.schemas.recognition import (
     EventVoid,
     UnknownFaceAssign,
     UnknownFaceAssignResult,
+    UnknownFaceBulkAction,
+    UnknownFaceBulkResult,
+    UnknownFaceBulkSkipped,
+    UnknownFaceGroupsResponse,
     UnknownFaceOut,
     UnknownFaceUpdate,
 )
@@ -105,6 +109,72 @@ async def list_unknown_faces(
         date_to=date_to,
     )
     return paginated(faces, page.page, page.page_size, total, "Unknown faces retrieved.")
+
+
+@router.get(
+    "/unknown-faces/groups",
+    response_model=UnknownFaceGroupsResponse,
+    summary="Unknown-face review queue, one card per person",
+)
+async def list_unknown_face_groups(
+    db: DbDep,
+    page: PageDep,
+    actor: Reviewer,
+    review_status: ReviewStatus | None = ReviewStatus.PENDING,
+    camera_id: int | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+) -> UnknownFaceGroupsResponse:
+    """§13 screen 9: faces that look like the same person are grouped over the whole queue, so one
+    person is one card on one page. Pagination counts groups. `sort`: `last_seen_at` (default
+    `-last_seen_at`), `first_seen_at` or `face_count`. `grouping.truncated` is true when only the newest
+    `grouping.max_faces` faces were grouped. Viewing is audit-logged."""
+    groups, total, coverage = await service.review_groups(
+        db,
+        page,
+        actor,
+        review_status=review_status,
+        camera_id=camera_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    base = paginated(groups, page.page, page.page_size, total, "Unknown-face groups retrieved.")
+    return UnknownFaceGroupsResponse(
+        message=base.message, data=base.data, pagination=base.pagination, grouping=coverage
+    )
+
+
+@router.post(
+    "/unknown-faces/bulk",
+    response_model=ApiResponse[UnknownFaceBulkResult],
+    summary="Assign or dismiss many unknown faces at once",
+)
+async def bulk_review_unknown_faces(
+    payload: UnknownFaceBulkAction, db: DbDep, actor: Reviewer
+) -> ApiResponse[UnknownFaceBulkResult]:
+    """FR-27 for a whole group card. `assign` needs the same permission as the single assign (Admin,
+    HR); `dismiss` is open to every reviewer. Faces that are gone or already reviewed are skipped and
+    listed in `skipped`; the rest are decided in one transaction. With `add_to_gallery`, only the first
+    assigned face with a snapshot is offered to the gallery, after the FR-9 checks (requires consent)."""
+    if payload.action == "assign" and not has_permission(actor, Permission.UNKNOWN_FACES_ASSIGN):
+        raise PermissionDenied()
+    outcome = await service.bulk_review(
+        db, payload.face_ids, payload.action, payload.employee_id, payload.add_to_gallery, actor
+    )
+    result = UnknownFaceBulkResult(
+        action=payload.action,
+        processed_ids=outcome.processed_ids,
+        skipped=[UnknownFaceBulkSkipped(id=face_id, reason=reason) for face_id, reason in outcome.skipped],
+        attendance_updated=outcome.attendance_updated,
+        added_to_gallery=outcome.added_to_gallery,
+        gallery_face_id=outcome.gallery_face_id,
+        gallery_rejection_reason=outcome.gallery_rejection_reason,
+    )
+    verb = "assigned" if payload.action == "assign" else "dismissed"
+    message = f"{len(outcome.processed_ids)} unknown face(s) {verb}."
+    if outcome.skipped:
+        message += f" {len(outcome.skipped)} skipped (already reviewed or not found)."
+    return ok(result, message)
 
 
 @router.get("/unknown-faces/{unknown_id}/snapshot", response_class=Response, summary="Unknown face snapshot")
