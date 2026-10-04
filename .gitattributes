@@ -1,0 +1,9 @@
+# Line endings (standards/12). Most files run inside Linux containers: shell scripts, Nginx/MediaMTX
+# config, Dockerfiles and env files break with Windows CRLF, so checkouts keep LF on every OS.
+* text=auto eol=lf
+*.sh text eol=lf
+# Binary files: never converted.
+*.docx binary
+*.png binary
+*.ico binary
+*.onnx binary
