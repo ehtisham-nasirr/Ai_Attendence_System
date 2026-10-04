@@ -4,6 +4,8 @@ Operating guide for IT (requirements §15, §18, §19). It covers deployment, en
 
 > **Status:** These steps were exercised on a single development host (see `batch/*_docker-deployment-monitoring.md` for what was and was not run). They have not been run on the production servers, against real cameras, or with the organisation's CA, SMTP or Teams.
 
+> **Laptop or test machine:** to run everything, including one recognition engine, on a single Windows laptop, follow [`docs/local-development.md`](local-development.md) (`infra/docker-compose.dev.yml`). That setup is not for production.
+
 ## 1. Topology
 
 | Host | Compose file | Services | Exposed |
@@ -28,7 +30,7 @@ Prerequisites: Docker Engine 25+ with the Compose plugin, the server's VLAN and 
    chmod 600 .env env/backend.env
    ```
    Replace every `change-me`:
-   - Passwords and `BACKUP_ENCRYPTION_KEY`: `openssl rand -base64 36`.
+   - Passwords and `BACKUP_ENCRYPTION_KEY`: `openssl rand -hex 32`. Use hex: the database and Redis passwords go into connection URLs, where a `/` (common in base64) breaks the Redis URL.
    - `JWT_SECRET`: `python3 -c "import secrets;print(secrets.token_urlsafe(48))"`.
    - `ENCRYPTION_KEY` (AES-256, the **same value on every engine node**): `python3 -c "import os,base64;print(base64.b64encode(os.urandom(32)).decode())"`.
    - `ENGINE_API_TOKEN`: `openssl rand -hex 32`, the same on the backend and every engine.

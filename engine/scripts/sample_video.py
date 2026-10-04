@@ -1,7 +1,8 @@
 """Writes a synthetic H.264 test clip: textured static scene with moving blocks during set windows.
 
 It contains no faces and no recordings of people, so it can be generated anywhere (standards/18).
-Used by the decoder tests, `make dev` (looped by MediaMTX) and `benchmark_cpu.py`.
+Used by the decoder tests, file:// test cameras on a dev laptop (docs/local-development.md §9) and
+`benchmark_cpu.py`.
 
     uv run python scripts/sample_video.py recordings/sample.mp4 --seconds 60
 """

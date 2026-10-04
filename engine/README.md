@@ -69,7 +69,11 @@ uv run python scripts/sample_video.py recordings/sample.mp4 --seconds 60   # no 
 # set ENGINE_ALLOW_FILE_SOURCES=true and create a camera with URL file:///abs/path/recordings/sample.mp4
 ```
 
-`make dev` at the repository root runs the whole stack with MediaMTX looping the clip as RTSP.
+To run the engine in Docker together with the backend stack on one laptop or test machine, use the
+overlay `infra/docker-compose.dev.yml` (`make dev`, or the plain `docker compose` commands in
+`docs/local-development.md`). Put clips in `infra/data/videos/` and use the camera URL
+`file:///srv/videos/<clip>.mp4` on engine node `node-1`. Live view is not available for file sources,
+because MediaMTX cannot pull `file://` URLs.
 
 ### Models
 

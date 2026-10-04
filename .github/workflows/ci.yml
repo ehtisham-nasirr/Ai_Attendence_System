@@ -100,6 +100,7 @@ jobs:
           cp env/engine.env.example env/engine.env
           docker compose config -q
           docker compose -f docker-compose.engine.yml config -q
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml config -q
 
   images:
     needs: [python, frontend]

@@ -19,12 +19,14 @@ COPY engine/pyproject.toml engine/uv.lock engine/README.md engine/
 WORKDIR /srv/engine
 RUN uv sync --frozen --no-dev --no-install-project
 
+# Models are fetched at build time with pinned SHA-256 (never committed to Git). This layer comes
+# before the application code so that a code change does not download the models again.
+COPY engine/scripts/download_models.py scripts/download_models.py
+RUN uv run --no-sync python scripts/download_models.py --dest /srv/engine/models
+
 COPY engine/app app
 COPY engine/scripts scripts
 RUN uv sync --frozen --no-dev
-
-# Models are fetched at build time with pinned SHA-256 (never committed to Git).
-RUN uv run --no-sync python scripts/download_models.py --dest /srv/engine/models
 
 RUN useradd --system --uid 10001 facetrack && mkdir -p /srv/engine/buffer && chown facetrack /srv/engine/buffer
 USER facetrack

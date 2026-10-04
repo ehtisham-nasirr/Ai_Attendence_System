@@ -1,0 +1,89 @@
+# Single laptop or test machine ONLY (docs/local-development.md). Overlay on docker-compose.yml that
+# adds one recognition engine, so enrollment, camera tests and recognition work without a separate
+# engine server:
+#
+#   cd infra
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+#
+# Production does not use this file: engines run on their own CPU servers with
+# docker-compose.engine.yml (docs/runbook.md §3). Development uses recorded clips, never live
+# production cameras (CLAUDE.md §1.3), so file:// camera sources are allowed here.
+
+services:
+  engine:
+    image: ${REGISTRY:-facetrack}/engine:${FACETRACK_VERSION:-latest}
+    build:
+      context: ..
+      dockerfile: engine/Dockerfile
+    # Only the two secrets the engine shares with the backend (never hardcoded, standards/06):
+    #   ENGINE_ENCRYPTION_KEY = ENCRYPTION_KEY in env/backend.env
+    #   ENGINE_API_TOKEN      = ENGINE_API_TOKEN in env/backend.env
+    # Everything below in `environment` wins over this file, so a copy of engine.env.example works too.
+    env_file: env/engine.env
+    environment:
+      ENGINE_ENVIRONMENT: development
+      ENGINE_NODE_NAME: node-1   # backend ENGINE_NODES={"node-1": "http://engine:8100"}
+      # Read-only role made by postgres/init (Q51); passwords come from infra/.env.
+      ENGINE_DATABASE_URL: postgresql+asyncpg://facetrack_engine:${ENGINE_DB_PASSWORD:?set ENGINE_DB_PASSWORD in infra/.env}@postgres:5432/facetrack
+      ENGINE_REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in infra/.env}@redis:6379/0
+      ENGINE_STORAGE_BACKEND: local
+      ENGINE_MEDIA_ROOT: /srv/media
+      ENGINE_BUFFER_DIR: /srv/engine/buffer
+      # Laptop CPU budget (standards/17 §4): 1 worker x 2 threads, no core pinning.
+      ENGINE_INFERENCE_WORKERS: "1"
+      ENGINE_THREADS_PER_WORKER: "2"
+      ENGINE_INFERENCE_CORES: ""
+      # Dev only: a camera URL may be file:///srv/videos/<clip>.mp4 (looped in real time).
+      ENGINE_ALLOW_FILE_SOURCES: "true"
+    # Own variables, so the server-sized ENGINE_CPUS / ENGINE_MEMORY in infra/.env do not apply here.
+    cpus: "${ENGINE_DEV_CPUS:-2}"
+    mem_limit: ${ENGINE_DEV_MEMORY:-3g}
+    volumes:
+      # Same snapshot store as the backend (ADR-0005), as a Docker volume (see `media` below).
+      - media:/srv/media
+      # Encrypted event buffer for Redis outages: must survive container restarts.
+      - engine-buffer:/srv/engine/buffer
+      # Recorded test clips (made with the consent of everyone in them); never committed (standards/12).
+      # Copied in with: docker compose cp data/videos/. engine:/srv/videos
+      - videos:/srv/videos
+    # No published port: the backend reaches it on the internal network (standards/06).
+    networks: [internal]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    # Healthy only when the inference worker, PostgreSQL and Redis are all OK (the image's own check
+    # passes on any HTTP 200, also while degraded).
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8100/health | grep -q '\"status\":\"ok\"'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    restart: always
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
+
+  # On a laptop the media store is a Docker volume, not the MEDIA_DIR folder: under Rancher Desktop /
+  # WSL a bind mount of a Windows drive (/mnt/d/...) is not reliably visible to the Docker engine or
+  # writable by the containers' user 10001 (seen on the owner's laptop: "Permission denied:
+  # '/srv/media/enroll'", clips not found). The volume is first filled from the backend image, whose
+  # /srv/media belongs to user 10001, by `migrate`, which starts before every other user of it.
+  migrate: { volumes: [media:/srv/media] }
+  backend: { volumes: [media:/srv/media] }
+  worker: { volumes: [media:/srv/media] }
+  scheduler: { volumes: [media:/srv/media] }
+
+  # Backup and monitoring are for servers. On a laptop they only start with: --profile ops
+  backup: { profiles: [ops] }
+  prometheus: { profiles: [ops] }
+  alertmanager: { profiles: [ops] }
+  grafana: { profiles: [ops] }
+  node-exporter: { profiles: [ops] }
+
+volumes:
+  engine-buffer: {}
+  media: {}
+  videos: {}

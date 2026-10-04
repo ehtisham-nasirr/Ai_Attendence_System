@@ -1,5 +1,5 @@
 # FaceTrack monorepo tasks (standards/01). Each Python package has its own uv environment.
-.PHONY: help sync test lint typecheck test-common test-engine test-backend test-frontend lint-common lint-engine lint-backend lint-frontend build-frontend e2e models sample-video benchmark migrate gen-api seed images check-monitoring
+.PHONY: help sync test lint typecheck test-common test-engine test-backend test-frontend lint-common lint-engine lint-backend lint-frontend build-frontend e2e models sample-video benchmark migrate gen-api seed images check-monitoring dev dev-up dev-down dev-logs
 
 help:
 	@grep -E '^[a-z-]+:' Makefile | sed 's/:.*//' | sort | tr '\n' ' '; echo
@@ -71,6 +71,21 @@ seed:
 gen-api:
 	cd backend && uv run python -m app.scripts.export_openapi
 	cd frontend && npm run gen-api
+
+# One laptop/test machine: backend stack + one engine with recorded clips (infra/docker-compose.dev.yml,
+# docs/local-development.md). `make dev` (the name in standards/01, standards/11 and commands/new-feature.md)
+# is the same as dev-up. dev-down keeps the data; it never removes volumes. dev-logs S=engine follows one service.
+DEV_COMPOSE = cd infra && docker compose -f docker-compose.yml -f docker-compose.dev.yml
+dev: dev-up
+
+dev-up:
+	$(DEV_COMPOSE) up -d --build
+
+dev-down:
+	$(DEV_COMPOSE) down
+
+dev-logs:
+	$(DEV_COMPOSE) logs -f --tail 100 $(S)
 
 # Deployment images (infra/docker-compose*.yml; docs/runbook.md). Needs infra/.env and infra/env/*.env.
 images:
