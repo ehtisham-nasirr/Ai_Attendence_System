@@ -39,6 +39,7 @@ from app.pipeline.track_manager import (
     LivenessRequest,
     TrackManager,
     TrackRules,
+    UnconfirmedKnownTrack,
 )
 from app.pipeline.tracking import FaceTracker
 from app.pipeline.voting import VotingRules
@@ -433,6 +434,18 @@ class CameraWorker:
                 self._submit_liveness(action, now)
             elif isinstance(action, EmitEvent):
                 self._emit(action)
+            elif isinstance(action, UnconfirmedKnownTrack):
+                # FR-17: a known person seen too briefly to confirm is not an Unknown face. No event and
+                # no snapshot; ids and counts only in the log (standards/18).
+                self._count("unconfirmed_known_tracks")
+                logger.info(
+                    "unconfirmed track matched one enrolled employee; not logged as unknown",
+                    extra={
+                        "camera_id": self.config.camera_id,
+                        "track_id": action.track_id,
+                        "embedded_crops": action.embedded_crops,
+                    },
+                )
 
     def _submit_embed(self, request: EmbedRequest, now: float) -> None:
         request_id = self._client.new_request_id()

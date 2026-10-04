@@ -477,6 +477,8 @@ class EngineSupervisor:
             metrics.CAMERA_FRAME_AGE.labels(camera).set(max(0.0, age))
         for name, value in report.counters.items():
             metrics.CAMERA_COUNTS.labels(camera, name).inc(value)
+        unconfirmed_known = report.counters.get("unconfirmed_known_tracks", 0)
+        metrics.UNCONFIRMED_KNOWN_TRACKS.labels(camera).inc(unconfirmed_known)
         for step, samples in report.timings_ms.items():
             for sample in samples:
                 metrics.STEP_MS.labels(step).observe(sample)

@@ -1,6 +1,7 @@
 """End-to-end camera pipeline with scripted models (§10.1 steps 1-11, FR-14..FR-17, NFR-15)."""
 
 import base64
+import logging
 from datetime import UTC, datetime
 from typing import Any
 
@@ -10,6 +11,7 @@ from facetrack_common.constants import CRYPTO_PURPOSE_EMBEDDING, CameraMode, Cam
 from facetrack_common.crypto import Cipher
 from facetrack_common.events import RecognitionEvent
 from fakes import FakeDetector, FakeEmbedder, InProcessClient, face_at
+from prometheus_client import REGISTRY
 
 from app.capture.frame_buffer import LatestFrameBuffer
 from app.config import EngineSettings
@@ -17,6 +19,7 @@ from app.gallery.index import GalleryIndex, GallerySnapshot
 from app.pipeline.camera_worker import CameraStatusReport, CameraWorker
 from app.scheduler.camera_config import CameraRuntimeConfig
 from app.scheduler.inference_pool import TaskKind
+from app.scheduler.supervisor import EngineSupervisor
 
 
 class FakeSource:
@@ -164,6 +167,29 @@ def test_fr17_unknown_person_logged_once_with_encrypted_embedding(
     token = base64.b64decode(event.embedding_encrypted or "")
     vector = cipher.decrypt_embedding(token, CRYPTO_PURPOSE_EMBEDDING, 4)
     assert vector.shape == (4,)
+
+
+def test_fr17_known_person_seen_too_briefly_is_counted_not_logged_as_unknown(
+    engine_settings: EngineSettings, cipher: Cipher, caplog: pytest.LogCaptureFixture
+) -> None:
+    h = Harness(engine_settings, cipher, ["A", "B"])
+    h.run(1, block=False)
+    h.run(2)  # two crops that match A, then the person leaves before a third: never confirmed
+    with caplog.at_level(logging.INFO, logger="app.pipeline.camera_worker"):
+        h.run(12, detector_faces=False)
+    assert h.emitter.events == []  # no Unknown event and no snapshot for an enrolled face
+    [record] = [r for r in caplog.records if "not logged as unknown" in r.getMessage()]
+    assert record.__dict__["camera_id"] == 3 and record.__dict__["embedded_crops"] == 2
+    assert "employee_code" not in record.__dict__  # ids and counts only, no identity (standards/18)
+    assert sum(r.counters.get("unconfirmed_known_tracks", 0) for r in h.reports) == 1
+    assert sum(r.counters.get("events_unknown", 0) for r in h.reports) == 0
+
+    metric, labels = "facetrack_engine_unconfirmed_known_tracks_total", {"camera_id": "3"}
+    before = REGISTRY.get_sample_value(metric, labels) or 0.0
+    supervisor = EngineSupervisor(engine_settings)
+    for report in h.reports:
+        supervisor._export_metrics(report)
+    assert REGISTRY.get_sample_value(metric, labels) == before + 1
 
 
 def test_idle_camera_sends_no_detection_work(engine_settings: EngineSettings, cipher: Cipher) -> None:

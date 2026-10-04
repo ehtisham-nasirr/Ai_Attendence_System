@@ -8,6 +8,13 @@ Lifecycle of a track:
   collecting -> (3 crops embedded, vote) -> confirmed -> [liveness] -> emitted + locked
                                           -> unknown   -> emitted as Unknown when the track ends
   collecting -> track ends with < 3 embedded crops -> emitted as Unknown (FR-17, once per track)
+
+An unconfirmed track whose crops point to exactly one enrolled employee (`points_to_one_employee`) is a
+known person seen too briefly, not an unknown face: when it ends, nothing is emitted (no event, no
+snapshot) and an `UnconfirmedKnownTrack` action is returned so the worker can count it. On cameras that
+require liveness (entrance) every unconfirmed track is still emitted as Unknown, because a brief spoof
+there never reaches the liveness check. Tracks that gave up after failed requests are always emitted as
+Unknown (fail safe).
 """
 
 import logging
@@ -19,7 +26,7 @@ import numpy.typing as npt
 
 from app.gallery.index import MatchCandidate
 from app.pipeline.best_crops import BestCrops, CropCandidate
-from app.pipeline.voting import VoteResult, VotingRules, decide_track
+from app.pipeline.voting import VoteResult, VotingRules, decide_track, points_to_one_employee
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +70,15 @@ class EmitEvent:
     embedding: npt.NDArray[np.float32] | None
 
 
-Action = EmbedRequest | LivenessRequest | EmitEvent
+@dataclass(frozen=True, slots=True)
+class UnconfirmedKnownTrack:
+    """A track ended unconfirmed but matched only one enrolled employee: count it, emit nothing."""
+
+    track_id: int
+    embedded_crops: int
+
+
+Action = EmbedRequest | LivenessRequest | EmitEvent | UnconfirmedKnownTrack
 
 
 @dataclass
@@ -76,6 +91,7 @@ class _Track:
     in_flight: set[int] = field(default_factory=set)
     decision: VoteResult | None = None
     retries: int = 0
+    gave_up: bool = False  # an embedding request failed too often: always end as Unknown (fail safe)
 
 
 class TrackManager:
@@ -162,7 +178,7 @@ class TrackManager:
         if embedded:
             del self._tracks[track.track_id]
             confidence = track.decision.confidence if track.decision else _best_score(embedded)
-            return [self._unknown(track, embedded[0], confidence, liveness=None)]
+            return [self._end_unconfirmed(track, confidence)]
         best = track.crops.best()
         if best is None:
             del self._tracks[track.track_id]  # never had a usable crop: nothing to log
@@ -195,7 +211,7 @@ class TrackManager:
             embedded = track.crops.embedded
             if not embedded:
                 return []
-            return [self._unknown(track, embedded[0], _best_score(embedded), liveness=None)]
+            return [self._end_unconfirmed(track, _best_score(embedded))]
 
         embedded = track.crops.embedded
         decision = decide_track([c.matches or [] for c in embedded], self.rules.voting)
@@ -235,6 +251,7 @@ class TrackManager:
                 track.phase = "collecting"  # _end() will retry the unknown embedding
             if give_up and track.phase == "collecting":
                 track.phase = "decided_unknown"
+                track.gave_up = True
             return []
         if give_up:
             track.phase = "locked"
@@ -269,6 +286,24 @@ class TrackManager:
             crop=track.crops.embedded[0],
             embedding=None,
         )
+
+    def _end_unconfirmed(self, track: _Track, confidence: float) -> EmitEvent | UnconfirmedKnownTrack:
+        """An unconfirmed track with embedded crops ended: Unknown, unless it is a known person (FR-17).
+
+        Never recognizes anyone: a track that points to one employee but was not confirmed by the vote
+        is only left out of the Unknown log.
+        """
+        embedded = track.crops.embedded
+        crop_matches = [c.matches or [] for c in embedded]
+        # Entrance cameras (liveness required) keep every unconfirmed track as Unknown: a brief photo or
+        # screen held up there never reaches the liveness check, and its snapshot is the audit evidence.
+        if (
+            not self.rules.liveness_required
+            and not track.gave_up
+            and points_to_one_employee(crop_matches, self.rules.voting)
+        ):
+            return UnconfirmedKnownTrack(track.track_id, len(embedded))
+        return self._unknown(track, embedded[0], confidence, liveness=None)
 
     @staticmethod
     def _unknown(track: _Track, crop: CropCandidate, confidence: float, liveness: float | None) -> EmitEvent:

@@ -32,6 +32,11 @@ CAMERA_DEFERRED = Gauge(
 CAMERA_LOST = Gauge(
     "facetrack_engine_lost_events", "Events refused by a full buffer (must stay 0)", ["camera_id"]
 )
+UNCONFIRMED_KNOWN_TRACKS = Counter(
+    "facetrack_engine_unconfirmed_known_tracks_total",
+    "Unconfirmed tracks that matched only one enrolled employee; not logged as Unknown (FR-17)",
+    ["camera_id"],
+)
 CAMERA_COUNTS = Counter(
     "facetrack_engine_camera_counts_total", "Per-camera pipeline counters", ["camera_id", "name"]
 )

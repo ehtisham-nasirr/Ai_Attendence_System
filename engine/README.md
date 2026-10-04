@@ -43,6 +43,17 @@ employee at or above the threshold. Liveness (entrance cameras, when enabled) ru
 crop; a spoof becomes an Unknown event. Thresholds come from the `settings` table / camera row and
 are never lowered in code.
 
+A track that ends without being confirmed is logged once as an Unknown event, with a snapshot and its
+encrypted embedding (FR-17). There is one exception: a known person seen too briefly. If at least one
+of its crops votes, every vote is for the same employee, and no crop scores any other employee at or
+above the threshold, nothing is emitted (no event, no snapshot). The track is counted in
+`facetrack_engine_unconfirmed_known_tracks_total{camera_id}` and logged at INFO with ids and counts
+only. This never marks anyone present; confirmation still needs the 2-of-3 vote. The exception does
+not apply on cameras that require liveness (entrance): there every unconfirmed track is still logged as
+Unknown, because a brief photo or screen never reaches the liveness check. Spoofs caught by liveness, and
+tracks whose embedding requests failed until the engine gave up, are always logged as Unknown
+(ADR-0006).
+
 ## Setup
 
 Requirements: Python 3.12, [uv](https://docs.astral.sh/uv/), PostgreSQL 16, Redis 7.
@@ -123,3 +134,4 @@ before/after, evaluation, 30-minute soak) and records the numbers in `batch/`.
 | Stuck at a degraded ladder level | `/load`: CPU above `engine.ladder_cpu_low_pct` or lag above `engine.ladder_lag_high_s`; add a node |
 | Events not reaching the backend | `facetrack_engine_buffered_events` > 0 means Redis/storage is down; they replay automatically |
 | Nobody recognised | gallery empty for this embedder model (`/health.gallery_version`, `facetrack_engine_gallery_embeddings`) |
+| Enrolled person neither recognised nor in Unknown faces | `facetrack_engine_unconfirmed_known_tracks_total` rising: tracks too short for the 2-of-3 vote (face visible too briefly, or crops rejected by the quality gate) |

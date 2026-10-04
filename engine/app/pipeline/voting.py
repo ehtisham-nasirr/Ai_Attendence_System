@@ -66,3 +66,21 @@ def decide_track(crop_matches: Sequence[Sequence[MatchCandidate]], rules: Voting
         return VoteResult("unknown", confidence=best_seen)
     winning_scores = scores_by_code[winner]
     return VoteResult("confirmed", winner, sum(winning_scores) / len(winning_scores))
+
+
+def points_to_one_employee(crop_matches: Sequence[Sequence[MatchCandidate]], rules: VotingRules) -> bool:
+    """True when an UNCONFIRMED track's crops point to exactly one enrolled employee (FR-17).
+
+    Strict: at least one crop votes (`crop_vote`: threshold AND margin), every voting crop votes for the
+    same employee, and no crop scores any other employee at or above the threshold. Such a track is a
+    known person seen too briefly to confirm, not an unknown face. This never confirms a track: that
+    still needs `decide_track` (`min_votes` of `required_crops`).
+    """
+    voted: set[str] = set()
+    above_threshold: set[str] = set()
+    for matches in crop_matches:
+        above_threshold.update(m.employee_code for m in matches if m.score >= rules.threshold)
+        code = crop_vote(matches, rules)
+        if code is not None:
+            voted.add(code)
+    return len(voted) == 1 and above_threshold == voted

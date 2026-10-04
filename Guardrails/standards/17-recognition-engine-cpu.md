@@ -53,7 +53,7 @@ The engine runs on the CPUs of existing data center servers. **There is no GPU.*
 
 - Match with cosine similarity on L2-normalised vectors via FAISS (inner product).
 - Accept only if best score ≥ `match_threshold` **and** (best − second-best employee) ≥ `margin`, per camera.
-- A track is confirmed when **at least 2 of its 3 best crops** match the same employee and none match another above threshold; otherwise it becomes Unknown when the track ends.
+- A track is confirmed when **at least 2 of its 3 best crops** match the same employee and none match another above threshold; otherwise it becomes Unknown when the track ends. Exception (ADR-0006): on cameras without liveness, an unconfirmed track whose crops point to exactly one employee emits nothing and is only counted.
 - Liveness runs once on the best crop of a confirmed track on entrance cameras.
 - Thresholds, margin and voting values are read from the `settings` table / camera row. **Never change their defaults, and never lower them, without explicit approval** (false accept is worse than a miss — NFR-2).
 
