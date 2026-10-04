@@ -88,7 +88,10 @@ export function EventLogPage() {
       {
         id: "status",
         header: "Status",
-        meta: { exportValue: (e) => e.status },
+        meta: {
+          exportValue: (e) => recognitionStatusLabel[e.status].label,
+          exportTone: (e) => recognitionStatusLabel[e.status].tone,
+        },
         cell: ({ row }) => {
           const status = recognitionStatusLabel[row.original.status];
           return (
@@ -132,6 +135,7 @@ export function EventLogPage() {
         getRowId={(row) => String(row.id)}
         exportAll={() => exportEvents(filters)}
         exportFileName={`events-${day}.csv`}
+        exportTitle={`Event log ${day}`}
         toolbar={
           <>
             <Input

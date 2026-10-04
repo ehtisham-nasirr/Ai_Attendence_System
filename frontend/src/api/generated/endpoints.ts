@@ -14,6 +14,7 @@ import type {
   ApiResponseAuthOptions,
   ApiResponseCameraLiveOut,
   ApiResponseCameraOut,
+  ApiResponseCameraStreamUrlsOut,
   ApiResponseCameraTestOut,
   ApiResponseCorrectionResult,
   ApiResponseDashboardSummary,
@@ -99,6 +100,7 @@ import type {
   PushPayrollParams,
   ReportType,
   SettingsUpdate,
+  SheetExportIn,
   ShiftCreate,
   ShiftUpdate,
   TestCameraParams,
@@ -741,7 +743,8 @@ export const listCameras = (
     }
   
 /**
- * The RTSP URL (with credentials) is stored AES-256 encrypted and never returned (FR-1, NFR-8).
+ * The RTSP URL (with credentials) is stored AES-256 encrypted (FR-1, NFR-8). It is returned only by
+`GET /cameras/{id}/stream-urls`, to camera managers (Q63).
  * @summary Add a camera
  */
 export const createCamera = (
@@ -790,6 +793,18 @@ export const deleteCamera = (
  options?: SecondParameter<typeof apiRequest<void>>,) => {
       return apiRequest<void>(
       {url: `/api/v1/cameras/${cameraId}`, method: 'DELETE'
+    },
+      options);
+    }
+  
+/**
+ * @summary Saved stream links for the edit form (camera managers)
+ */
+export const streamUrls = (
+    cameraId: number,
+ options?: SecondParameter<typeof apiRequest<ApiResponseCameraStreamUrlsOut>>,) => {
+      return apiRequest<ApiResponseCameraStreamUrlsOut>(
+      {url: `/api/v1/cameras/${cameraId}/stream-urls`, method: 'GET'
     },
       options);
     }
@@ -1071,6 +1086,22 @@ export const rejectCorrection = (
     }
   
 /**
+ * §13 "export on every list" as a coloured .xlsx (Q62). The rows are what the user's own list screen
+loaded through the API (at most 10,000), so no extra data is exposed; the export is audit-logged.
+ * @summary Excel file of a list view, with status colours
+ */
+export const exportSheet = (
+    sheetExportIn: SheetExportIn,
+ options?: SecondParameter<typeof apiRequest<unknown>>,) => {
+      return apiRequest<unknown>(
+      {url: `/api/v1/reports/sheet`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: sheetExportIn
+    },
+      options);
+    }
+  
+/**
  * @summary Report data, or an Excel/PDF export job
  */
 export const getReport = (
@@ -1317,6 +1348,7 @@ export type CreateCameraResult = NonNullable<Awaited<ReturnType<typeof createCam
 export type GetCameraResult = NonNullable<Awaited<ReturnType<typeof getCamera>>>
 export type UpdateCameraResult = NonNullable<Awaited<ReturnType<typeof updateCamera>>>
 export type DeleteCameraResult = NonNullable<Awaited<ReturnType<typeof deleteCamera>>>
+export type StreamUrlsResult = NonNullable<Awaited<ReturnType<typeof streamUrls>>>
 export type TestCameraResult = NonNullable<Awaited<ReturnType<typeof testCamera>>>
 export type LiveViewResult = NonNullable<Awaited<ReturnType<typeof liveView>>>
 export type ListEventsResult = NonNullable<Awaited<ReturnType<typeof listEvents>>>
@@ -1336,6 +1368,7 @@ export type CorrectAttendanceResult = NonNullable<Awaited<ReturnType<typeof corr
 export type ListCorrectionsResult = NonNullable<Awaited<ReturnType<typeof listCorrections>>>
 export type ApproveCorrectionResult = NonNullable<Awaited<ReturnType<typeof approveCorrection>>>
 export type RejectCorrectionResult = NonNullable<Awaited<ReturnType<typeof rejectCorrection>>>
+export type ExportSheetResult = NonNullable<Awaited<ReturnType<typeof exportSheet>>>
 export type GetReportResult = NonNullable<Awaited<ReturnType<typeof getReport>>>
 export type IntegrationAttendanceResult = NonNullable<Awaited<ReturnType<typeof integrationAttendance>>>
 export type ListApiClientsResult = NonNullable<Awaited<ReturnType<typeof listApiClients>>>

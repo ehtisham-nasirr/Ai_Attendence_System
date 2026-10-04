@@ -73,6 +73,13 @@ class CameraUpdate(InputModel):
     _hours = field_validator("operating_hours")(_check_hours)
 
 
+class CameraStreamUrlsOut(ApiModel):
+    """Saved stream links, credentials included, for the camera edit form (owner decision Q63)."""
+
+    rtsp_url: str
+    substream_url: str | None
+
+
 class CameraRuntimeOut(ApiModel):
     mode: CameraMode
     connected: bool

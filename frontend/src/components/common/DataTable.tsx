@@ -5,7 +5,7 @@ import {
   type ColumnDef,
   type RowData,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsUpDown, Download } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsUpDown, Download, FileSpreadsheet } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -14,7 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { downloadCsv, type CsvColumn } from "@/lib/csv";
+import { downloadCsv } from "@/lib/csv";
+import type { Tone } from "@/lib/labels";
+import { downloadSheet, type SheetColumn } from "@/lib/sheetExport";
 import { cn } from "@/lib/utils";
 
 declare module "@tanstack/react-table" {
@@ -22,8 +24,10 @@ declare module "@tanstack/react-table" {
   interface ColumnMeta<TData extends RowData, TValue> {
     /** Server sort key (`sort=key` / `sort=-key`); the column is sortable when set. */
     sortKey?: string;
-    /** Value written to the CSV export; columns without it are not exported. */
+    /** Value written to the CSV/Excel export; columns without it are not exported. */
     exportValue?: (row: TData) => string | number | boolean | null | undefined;
+    /** Cell colour in the Excel export: the tone of the badge shown on screen (Q62). */
+    exportTone?: (row: TData) => Tone | undefined;
     className?: string;
   }
 }
@@ -47,13 +51,15 @@ export interface DataTableProps<T> {
   empty: ReactNode;
   toolbar?: ReactNode;
   getRowId?: (row: T) => string;
-  /** Loads every row that matches the current filters for the CSV export. */
+  /** Loads every row that matches the current filters for the CSV/Excel export. */
   exportAll?: () => Promise<T[]>;
   exportFileName?: string;
+  /** Title on the Excel sheet, e.g. "Event log — 04 Oct 2026". */
+  exportTitle?: string;
   onRowClick?: (row: T) => void;
 }
 
-/** The one list table (standards/07): server-side paging and sort, search/filters, CSV export. */
+/** The one list table (standards/07): server-side paging and sort, search/filters, Excel and CSV export. */
 export function DataTable<T>({
   columns,
   rows,
@@ -72,9 +78,10 @@ export function DataTable<T>({
   getRowId,
   exportAll,
   exportFileName = "export.csv",
+  exportTitle = "Export",
   onRowClick,
 }: DataTableProps<T>) {
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<"csv" | "xlsx" | null>(null);
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table returns unstable functions; this component is not compiler-optimised
   const table = useReactTable({
     data: rows ?? [],
@@ -86,24 +93,26 @@ export function DataTable<T>({
   });
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
-  const exportCsv = async () => {
+  const exportRows = async (format: "csv" | "xlsx") => {
     if (!exportAll) return;
-    setExporting(true);
+    setExporting(format);
     try {
       const all = await exportAll();
-      const csvColumns: CsvColumn<T>[] = table
+      const exportColumns: SheetColumn<T>[] = table
         .getAllLeafColumns()
         .filter((column) => column.columnDef.meta?.exportValue)
         .map((column) => ({
           header: typeof column.columnDef.header === "string" ? column.columnDef.header : column.id,
           value: (row: T) => column.columnDef.meta?.exportValue?.(row),
+          tone: column.columnDef.meta?.exportTone,
         }));
-      downloadCsv(exportFileName, csvColumns, all);
+      if (format === "xlsx") await downloadSheet(exportTitle, exportFileName, exportColumns, all);
+      else downloadCsv(exportFileName, exportColumns, all);
       toast.success(`Exported ${all.length} rows.`);
     } catch (exportError) {
       toast.error(exportError instanceof Error ? exportError.message : "Export failed.");
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   };
 
@@ -120,9 +129,24 @@ export function DataTable<T>({
         <div className="flex flex-wrap items-center gap-2 border-b p-3">
           <div className="flex flex-1 flex-wrap items-center gap-2">{toolbar}</div>
           {exportAll && (
-            <Button variant="outline" size="sm" onClick={() => void exportCsv()} disabled={exporting || total === 0}>
-              <Download aria-hidden /> {exporting ? "Exporting…" : "Export CSV"}
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void exportRows("xlsx")}
+                disabled={exporting !== null || total === 0}
+              >
+                <FileSpreadsheet aria-hidden /> {exporting === "xlsx" ? "Exporting…" : "Export Excel"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void exportRows("csv")}
+                disabled={exporting !== null || total === 0}
+              >
+                <Download aria-hidden /> {exporting === "csv" ? "Exporting…" : "CSV"}
+              </Button>
+            </>
           )}
         </div>
       )}

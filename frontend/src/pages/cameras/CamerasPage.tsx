@@ -48,7 +48,10 @@ export function CamerasPage() {
       {
         id: "status",
         header: "Status",
-        meta: { exportValue: (c) => c.status },
+        meta: {
+          exportValue: (c) => cameraStatusLabel[c.status].label,
+          exportTone: (c) => cameraStatusLabel[c.status].tone,
+        },
         cell: ({ row }) => {
           const status = cameraStatusLabel[row.original.status];
           return <StatusBadge label={status.label} tone={status.tone} />;
@@ -57,7 +60,10 @@ export function CamerasPage() {
       {
         id: "mode",
         header: "Mode",
-        meta: { exportValue: (c) => c.runtime?.mode ?? "" },
+        meta: {
+          exportValue: (c) => (c.runtime ? cameraModeLabel[c.runtime.mode].label : ""),
+          exportTone: (c) => (c.runtime ? cameraModeLabel[c.runtime.mode].tone : undefined),
+        },
         cell: ({ row }) => {
           const mode = row.original.runtime ? cameraModeLabel[row.original.runtime.mode] : null;
           return mode ? <StatusBadge label={mode.label} tone={mode.tone} /> : "—";
@@ -162,6 +168,7 @@ export function CamerasPage() {
           getRowId={(row) => String(row.id)}
           exportAll={() => fetchAllPages((page, page_size) => listCameras({ ...params, page, page_size }))}
           exportFileName="cameras.csv"
+          exportTitle="Cameras"
           empty={empty}
         />
       ) : cameras.isPending ? (

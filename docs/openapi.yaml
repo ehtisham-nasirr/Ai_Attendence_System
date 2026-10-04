@@ -1465,8 +1465,10 @@ paths:
       tags:
       - cameras
       summary: Add a camera
-      description: The RTSP URL (with credentials) is stored AES-256 encrypted and
-        never returned (FR-1, NFR-8).
+      description: 'The RTSP URL (with credentials) is stored AES-256 encrypted (FR-1,
+        NFR-8). It is returned only by
+
+        `GET /cameras/{id}/stream-urls`, to camera managers (Q63).'
       operationId: create_camera
       requestBody:
         required: true
@@ -1559,6 +1561,32 @@ paths:
       responses:
         '204':
           description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/cameras/{camera_id}/stream-urls:
+    get:
+      tags:
+      - cameras
+      summary: Saved stream links for the edit form (camera managers)
+      operationId: stream_urls
+      parameters:
+      - name: camera_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Camera Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_CameraStreamUrlsOut_'
         '422':
           description: Validation Error
           content:
@@ -2445,6 +2473,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/reports/sheet:
+    post:
+      tags:
+      - reports
+      summary: Excel file of a list view, with status colours
+      description: '§13 "export on every list" as a coloured .xlsx (Q62). The rows
+        are what the user''s own list screen
+
+        loaded through the API (at most 10,000), so no extra data is exposed; the
+        export is audit-logged.'
+      operationId: export_sheet
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SheetExportIn'
+        required: true
+      responses:
+        '200':
+          description: The Excel file
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/reports/{report_type}:
     get:
       tags:
@@ -3133,6 +3189,22 @@ components:
       - message
       - data
       title: ApiResponse[CameraOut]
+    ApiResponse_CameraStreamUrlsOut_:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+        data:
+          $ref: '#/components/schemas/CameraStreamUrlsOut'
+      type: object
+      required:
+      - message
+      - data
+      title: ApiResponse[CameraStreamUrlsOut]
     ApiResponse_CameraTestOut_:
       properties:
         success:
@@ -4107,6 +4179,23 @@ components:
       title: CameraStatus
       description: Connection health of a camera as last reported by its engine node
         (FR-3).
+    CameraStreamUrlsOut:
+      properties:
+        rtsp_url:
+          type: string
+          title: Rtsp Url
+        substream_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Substream Url
+      type: object
+      required:
+      - rtsp_url
+      - substream_url
+      title: CameraStreamUrlsOut
+      description: Saved stream links, credentials included, for the camera edit form
+        (owner decision Q63).
     CameraTestOut:
       properties:
         ok:
@@ -6116,6 +6205,67 @@ components:
       title: SettingsUpdate
       description: Only the keys to change. Secret values sent back as the mask are
         left unchanged.
+    SheetCell:
+      properties:
+        value:
+          anyOf:
+          - type: string
+          - type: number
+          - type: 'null'
+          title: Value
+        tone:
+          anyOf:
+          - type: string
+            enum:
+            - ok
+            - warn
+            - bad
+            - info
+            - neutral
+            - leave
+          - type: 'null'
+          title: Tone
+      additionalProperties: false
+      type: object
+      title: SheetCell
+    SheetExportIn:
+      properties:
+        title:
+          type: string
+          maxLength: 80
+          minLength: 1
+          title: Title
+        file_name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          pattern: ^[A-Za-z0-9._ -]+$
+          title: File Name
+        columns:
+          items:
+            type: string
+          type: array
+          maxItems: 64
+          minItems: 1
+          title: Columns
+        rows:
+          items:
+            items:
+              $ref: '#/components/schemas/SheetCell'
+            type: array
+          type: array
+          maxItems: 10000
+          title: Rows
+      additionalProperties: false
+      type: object
+      required:
+      - title
+      - file_name
+      - columns
+      - rows
+      title: SheetExportIn
+      description: The rows a list screen shows, with each status cell's colour; rendered
+        as an .xlsx file.
     ShiftCreate:
       properties:
         grace_in_min:

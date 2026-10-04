@@ -100,7 +100,11 @@ export function AttendancePage() {
       {
         id: "status",
         header: "Status",
-        meta: { sortKey: "status", exportValue: (d) => (d.status ? attendanceStatusLabel[d.status].label : "") },
+        meta: {
+          sortKey: "status",
+          exportValue: (d) => (d.status ? attendanceStatusLabel[d.status].label : ""),
+          exportTone: (d) => (d.status ? attendanceStatusLabel[d.status].tone : undefined),
+        },
         cell: ({ row }) => {
           const status = row.original.status ? attendanceStatusLabel[row.original.status] : null;
           return (
@@ -160,6 +164,7 @@ export function AttendancePage() {
         onRowClick={setSelected}
         exportAll={() => exportAttendance(filters)}
         exportFileName={`attendance-${date}.csv`}
+        exportTitle={`Attendance ${date}`}
         toolbar={
           <>
             <Input

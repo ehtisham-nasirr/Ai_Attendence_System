@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
 import type { CameraCreate, CameraOut, CameraRole, CameraTestOut, CameraUpdate } from "@/api/generated/model";
@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { useCameraMutations } from "@/hooks/useCameras";
+import { useCameraMutations, useCameraStreamUrls } from "@/hooks/useCameras";
 import { useLocations } from "@/hooks/useOrganization";
 import { showError, showFormError } from "@/lib/forms";
 import { cameraRoleLabel } from "@/lib/labels";
@@ -63,38 +63,65 @@ function toCreate(values: CameraFormValues): CameraCreate {
   };
 }
 
-function toUpdate(values: CameraFormValues): CameraUpdate {
+/** The links saved for this camera, as loaded into the form (null when they could not be loaded). */
+interface StoredUrls {
+  rtsp_url: string;
+  substream_url: string;
+}
+
+function toUpdate(values: CameraFormValues, stored: StoredUrls | null): CameraUpdate {
   const { rtsp_url, substream_url, ...rest } = toCreate(values);
+  // Only a changed link is sent, so saving other fields does not restart the camera or log a link change.
+  const mainChanged = rtsp_url !== "" && rtsp_url !== stored?.rtsp_url;
+  const subChanged = !!substream_url && substream_url !== stored?.substream_url;
+  // With the saved links shown, emptying the sub-stream field removes it; otherwise the checkbox does.
+  const subCleared = !substream_url && (stored ? stored.substream_url !== "" : values.clear_substream);
   return {
     ...rest,
-    ...(rtsp_url ? { rtsp_url } : {}),
-    ...(substream_url ? { substream_url } : {}),
-    clear_substream: values.clear_substream,
+    ...(mainChanged ? { rtsp_url } : {}),
+    ...(subChanged ? { substream_url } : {}),
+    clear_substream: subCleared,
     clear_roi: values.roi_polygon.length < 3,
   };
 }
 
 /**
- * Add/edit drawer content (§13 screen 6, FR-1..FR-6). Stream URLs are write-only: the API stores them
- * encrypted and never returns them, so editing leaves them blank unless they change.
+ * Add/edit drawer content (§13 screen 6, FR-1..FR-6). Stream links are stored encrypted; on edit the saved
+ * links are loaded from `GET /cameras/{id}/stream-urls` (camera managers only, audit-logged, Q63) and shown
+ * in full, so they never have to be typed again. If they cannot be loaded, an empty field keeps the saved one.
  */
 export function CameraForm({ camera, onSaved }: { camera?: CameraOut; onSaved: (camera: CameraOut) => void }) {
   const locations = useLocations();
   const { create, update, test } = useCameraMutations();
   const [saved, setSaved] = useState<CameraOut | undefined>(camera);
   const [testResult, setTestResult] = useState<CameraTestOut | null>(null);
+  // Links saved in this drawer; before any save, the links loaded from the API.
+  const [savedUrls, setSavedUrls] = useState<StoredUrls | null>(null);
+  const storedQuery = useCameraStreamUrls(camera?.id);
+  const loaded = storedQuery.data?.data;
+  const stored: StoredUrls | null =
+    savedUrls ?? (loaded ? { rtsp_url: loaded.rtsp_url, substream_url: loaded.substream_url ?? "" } : null);
   const form = useForm<CameraFormValues>({
     resolver: zodResolver(cameraSchema(!camera)),
     defaultValues: toValues(camera),
   });
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (!loaded || prefilled.current) return; // fill the fields once; never overwrite what the user types
+    prefilled.current = true;
+    form.reset({ ...form.getValues(), rtsp_url: loaded.rtsp_url, substream_url: loaded.substream_url ?? "" });
+  }, [loaded, form]);
   const [role, alwaysOn, defaultFps, defaultThreshold, newUrl, newSubstreamUrl] = useWatch({
     control: form.control,
     name: ["role", "always_on", "use_default_fps", "use_default_threshold", "rtsp_url", "substream_url"],
   });
   // The engine tests the saved stream link, so a link typed but not yet saved would not be the one tested.
+  const linksEdited = stored
+    ? newUrl.trim() !== stored.rtsp_url || newSubstreamUrl.trim() !== stored.substream_url
+    : !!(newUrl || newSubstreamUrl);
   const testBlockedReason = !saved
     ? "Save the camera to test the stream."
-    : newUrl || newSubstreamUrl
+    : linksEdited
       ? "Save changes first: Test connection checks the saved stream link, not the one typed above."
       : undefined;
   const snapshot = testResult?.ok && testResult.snapshot_jpeg_b64 ? `data:image/jpeg;base64,${testResult.snapshot_jpeg_b64}` : null;
@@ -109,13 +136,26 @@ export function CameraForm({ camera, onSaved }: { camera?: CameraOut; onSaved: (
 
   const submit = form.handleSubmit(async (values) => {
     try {
-      const result = saved
-        ? await update.mutateAsync({ id: saved.id, body: toUpdate(values) })
-        : await create.mutateAsync(toCreate(values));
+      const body = saved ? toUpdate(values, stored) : null;
+      const result =
+        saved && body
+          ? await update.mutateAsync({ id: saved.id, body })
+          : await create.mutateAsync(toCreate(values));
       setSaved(result.data);
-      form.reset({ ...values, rtsp_url: "", substream_url: "", clear_substream: false });
+      if (stored || !saved) {
+        // Keep showing the links that are now saved.
+        const urls = {
+          rtsp_url: values.rtsp_url.trim() || (stored?.rtsp_url ?? ""),
+          substream_url: values.substream_url.trim(),
+        };
+        setSavedUrls(urls);
+        form.reset({ ...values, ...urls, clear_substream: false });
+      } else {
+        form.reset({ ...values, rtsp_url: "", substream_url: "", clear_substream: false });
+      }
       onSaved(result.data);
-      if (!saved || values.rtsp_url) await runTest(result.data.id); // FR-2: test on save and on a new link
+      // FR-2: test on save and on a new link
+      if (!saved || body?.rtsp_url || body?.substream_url) await runTest(result.data.id);
     } catch (error) {
       showFormError(form, error);
     }
@@ -214,15 +254,18 @@ export function CameraForm({ camera, onSaved }: { camera?: CameraOut; onSaved: (
                     spellCheck={false}
                     autoCapitalize="off"
                     placeholder={
-                      saved
-                        ? `Stored (${saved.stream_host}). Leave blank to keep.`
+                      saved && !stored
+                        ? storedQuery.isLoading
+                          ? "Loading the saved link…"
+                          : `Stored (${saved.stream_host}). Leave blank to keep.`
                         : "rtsp://user:password@192.168.1.10:554/cam/realmonitor?channel=1&subtype=0"
                     }
                     {...field}
                   />
                 </FormControl>
                 <FormDescription>
-                  Visible while you type; stored encrypted after saving and never shown again.
+                  Main stream (<code>subtype=0</code> on Dahua). Stored encrypted; shown here only to camera
+                  managers.
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -240,15 +283,23 @@ export function CameraForm({ camera, onSaved }: { camera?: CameraOut; onSaved: (
                     autoComplete="off"
                     spellCheck={false}
                     autoCapitalize="off"
-                    placeholder={saved?.has_substream ? "Stored. Leave blank to keep." : "Lower resolution stream for idle detection"}
+                    placeholder={
+                      saved?.has_substream && !stored
+                        ? "Stored. Leave blank to keep."
+                        : "rtsp://user:password@192.168.1.10:554/cam/realmonitor?channel=1&subtype=1"
+                    }
                     {...field}
                   />
                 </FormControl>
+                <FormDescription>
+                  Lower resolution stream for idle checks (<code>subtype=1</code> on Dahua).
+                  {stored ? " Clear this field to remove the sub-stream." : ""}
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
-          {saved?.has_substream && (
+          {saved?.has_substream && !stored && (
             <FormField
               control={form.control}
               name="clear_substream"

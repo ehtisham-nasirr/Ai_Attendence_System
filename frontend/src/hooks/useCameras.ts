@@ -6,6 +6,7 @@ import {
   deleteCamera,
   listCameras,
   liveView,
+  streamUrls,
   testCamera,
   updateCamera,
 } from "@/api/generated/endpoints";
@@ -50,6 +51,22 @@ export function useCameraMutations() {
         testCamera(id, { use_substream: useSubstream }),
     }),
   };
+}
+
+/**
+ * Saved stream links (with credentials) for the edit form, camera managers only (Q63). Loaded once per
+ * opened form and not kept in the cache afterwards; no refetch on focus, so typing is never overwritten.
+ */
+export function useCameraStreamUrls(cameraId: number | undefined) {
+  return useQuery({
+    queryKey: ["camera-stream-urls", cameraId],
+    queryFn: () => streamUrls(cameraId as number),
+    enabled: cameraId !== undefined,
+    staleTime: Infinity,
+    gcTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 }
 
 /** Short-lived WebRTC (WHEP) URL + token for one camera tile; refreshed before it expires. */

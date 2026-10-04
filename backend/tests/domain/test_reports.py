@@ -183,3 +183,52 @@ async def test_fr31_pdf_export_renders(db: AsyncSession, data: dict[str, Any]) -
     report = await service.build_report(db, ALL, ReportType.DEPARTMENT_SUMMARY, _filters(), limit=None)
     pdf = export.to_pdf(report, "", "Hina HR")
     assert pdf.startswith(b"%PDF") and len(pdf) > 1_000
+
+
+def _fill(cell: Any) -> str:
+    return str(cell.fill.fgColor.rgb)[-6:].upper()
+
+
+async def test_fr31_excel_export_colours_statuses_and_register_letters(
+    db: AsyncSession, data: dict[str, Any]
+) -> None:
+    """Every sheet uses the portal's status colours: green present, yellow late, red absent (§13, Q62)."""
+    daily = await service.build_report(db, ALL, ReportType.DAILY, _filters(), limit=None)
+    workbook = load_workbook(io.BytesIO(export.to_xlsx(daily, "", "Hina HR")))
+    sheet = workbook.worksheets[0]
+    assert sheet.cell(1, 1).value == "FaceTrack — Daily attendance"
+    header = next(row for row in sheet.iter_rows() if row[0].value == "Date")
+    status_col = next(c.column for c in header if c.value == "Status")
+    assert _fill(header[0]) == "1F4E8C" and header[0].font.color.rgb.endswith("FFFFFF")
+    fills = {
+        sheet.cell(r, status_col).value: _fill(sheet.cell(r, status_col))
+        for r in range(header[0].row + 1, sheet.max_row + 1)
+    }
+    assert fills["Present"] == "C6EFCE" and fills["Late"] == "FFEB9C" and fills["Absent"] == "FFC7CE"
+    assert fills["On leave"] == "E4DFEC"
+    summary = workbook["Summary"]
+    assert "Colour legend" in [row[0].value for row in summary.iter_rows()]
+
+    register = await service.build_report(db, ALL, ReportType.MONTHLY_REGISTER, _filters(), limit=None)
+    sheet = load_workbook(io.BytesIO(export.to_xlsx(register, "", "Hina HR"))).worksheets[0]
+    letters = {
+        c.value: _fill(c) for row in sheet.iter_rows() for c in row if c.value in ("P", "L", "A", "LV")
+    }
+    assert letters == {"P": "C6EFCE", "L": "FFEB9C", "A": "FFC7CE", "LV": "E4DFEC"}
+
+
+def test_list_sheet_export_keeps_colours_numbers_and_neutralises_formulas() -> None:
+    rows: list[list[export.Cell]] = [
+        [("04-10-2026 17:03", None), ("Ehtisham Nasir", None), ("Recognised", "ok"), (0.85, None)],
+        [("04-10-2026 17:04", None), ("=cmd|'/c calc'!A1", None), ("Unknown", "warn"), (None, None)],
+    ]
+    data = export.sheet_to_xlsx("Event log", ["Time", "Employee", "Status", "Score"], rows, "now", "Hina HR")
+    workbook = load_workbook(io.BytesIO(data))
+    sheet = workbook["Event log"]
+    header = next(row for row in sheet.iter_rows() if row[0].value == "Time")
+    first, second = header[0].row + 1, header[0].row + 2
+    assert _fill(sheet.cell(first, 3)) == "C6EFCE" and _fill(sheet.cell(second, 3)) == "FFEB9C"
+    assert sheet.cell(first, 4).value == 0.85 and sheet.cell(second, 4).value is None
+    assert sheet.cell(second, 2).value == "'=cmd|'/c calc'!A1"
+    summary = [[c.value for c in row] for row in workbook["Summary"].iter_rows()]
+    assert ["Status: Recognised", 1] in summary and ["Status: Unknown", 1] in summary

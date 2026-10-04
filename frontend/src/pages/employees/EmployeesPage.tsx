@@ -82,7 +82,11 @@ const columns: ColumnDef<EmployeeOut>[] = [
   {
     accessorKey: "status",
     header: "Status",
-    meta: { sortKey: "status", exportValue: (e) => e.status },
+    meta: {
+      sortKey: "status",
+      exportValue: (e) => employeeStatusLabel[e.status].label,
+      exportTone: (e) => employeeStatusLabel[e.status].tone,
+    },
     cell: ({ row }) => {
       const status = employeeStatusLabel[row.original.status];
       return <StatusBadge label={status.label} tone={status.tone} />;
@@ -139,6 +143,7 @@ export function EmployeesPage() {
         onRowClick={(row) => navigate(`/employees/${row.id}`)}
         exportAll={() => exportEmployees(filters)}
         exportFileName="employees.csv"
+        exportTitle="Employees"
         toolbar={
           <>
             <SearchInput

@@ -76,7 +76,11 @@ export function MonthlyRegisterPage() {
             <div className="text-[10px] font-normal">{WEEKDAYS[weekdayIndex(day)].slice(0, 2)}</div>
           </div>
         ),
-        meta: { className: "w-9 px-1 text-center", exportValue: (r) => letterOn(r, day).letter ?? "" },
+        meta: {
+          className: "w-9 px-1 text-center",
+          exportValue: (r) => letterOn(r, day).letter ?? "",
+          exportTone: (r) => letterTone.get(letterOn(r, day).letter ?? ""),
+        },
         cell: ({ row }) => {
           const { letter, manual } = letterOn(row.original, day);
           if (!letter) return <span className="text-muted-foreground">·</span>;
@@ -139,6 +143,7 @@ export function MonthlyRegisterPage() {
         getRowId={(row) => String(row.employee_id)}
         exportAll={() => exportRegister(filters)}
         exportFileName={`register-${month}.csv`}
+        exportTitle={`Monthly register ${month}`}
         toolbar={
           <>
             <MonthPicker month={month} onChange={(next) => url.set({ month: next })} max={thisMonth} />

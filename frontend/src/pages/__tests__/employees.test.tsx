@@ -1,8 +1,10 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import type { EmployeeOut } from "@/api/generated/model";
+import * as sheetExport from "@/lib/sheetExport";
 import { EmployeesPage } from "@/pages/employees/EmployeesPage";
 import { employee, page } from "@/test/fixtures";
 import { renderWithProviders } from "@/test/render";
@@ -58,5 +60,26 @@ describe("Employees (§13 screen 4)", () => {
     renderWithProviders(<EmployeesPage />, { route: "/employees" });
     expect(await screen.findByText("Database unavailable.", {}, { timeout: 4_000 })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
+  it("exports the filtered list as an Excel file with status colours (Q62)", async () => {
+    server.use(
+      http.get("*/api/v1/employees", () =>
+        HttpResponse.json(page([employee(), employee({ id: 42, employee_code: "E-042", full_name: "Bilal", status: "inactive" })])),
+      ),
+    );
+    const download = vi.spyOn(sheetExport, "downloadSheet").mockResolvedValue();
+    renderWithProviders(<EmployeesPage />, { route: "/employees" });
+    await screen.findByText("Bilal");
+    await userEvent.click(screen.getByRole("button", { name: "Export Excel" }));
+    await waitFor(() => expect(download).toHaveBeenCalled());
+    const [title, fileName, columns, rows] = download.mock.calls[0] as Parameters<typeof sheetExport.downloadSheet<EmployeeOut>>;
+    expect([title, sheetExport.xlsxFileName(fileName)]).toEqual(["Employees", "employees.xlsx"]);
+    const status = columns.findIndex((c) => c.header === "Status");
+    expect(sheetExport.toSheetRows(columns, rows).map((row) => row[status])).toEqual([
+      { value: "Active", tone: "ok" },
+      { value: "Inactive", tone: "neutral" },
+    ]);
+    expect(screen.getByRole("button", { name: "CSV" })).toBeInTheDocument();
   });
 });

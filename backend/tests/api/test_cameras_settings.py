@@ -4,7 +4,7 @@ import json
 
 from conftest import Api, FakeEngine, make_org, make_user
 from facetrack_common.constants import UserRole
-from facetrack_common.models import Camera, Setting
+from facetrack_common.models import AuditLog, Camera, Setting
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -227,3 +227,32 @@ async def test_users_crud_and_self_protection(api: Api, db: AsyncSession) -> Non
     me = (await api.get("/api/v1/auth/me")).json()["data"]
     assert (await api.delete(f"/api/v1/users/{me['id']}")).status_code == 422
     assert (await api.put(f"/api/v1/users/{me['id']}", json={"role": "hr_admin"})).status_code == 422
+
+
+async def test_q63_stream_urls_for_camera_managers_only_and_audited(make_api, db: AsyncSession) -> None:  # type: ignore[no-untyped-def]
+    org = await make_org(db)
+    admin = await make_api(await make_user(db, UserRole.SUPER_ADMIN, "admin1"))
+    created = await admin.post(
+        "/api/v1/cameras",
+        json={
+            "name": "Reception",
+            "location_id": org["location"].id,
+            "role": "ENTRY_EXIT",
+            "rtsp_url": "rtsp://admin:Sup3r%40Secret@10.0.0.5:554/cam/realmonitor?channel=1&subtype=0",
+            "substream_url": "rtsp://admin:Sup3r%40Secret@10.0.0.5:554/cam/realmonitor?channel=1&subtype=1",
+        },
+    )
+    camera_id = created.json()["data"]["id"]
+    response = await admin.get(f"/api/v1/cameras/{camera_id}/stream-urls")
+    assert response.status_code == 200 and response.headers["cache-control"] == "no-store"
+    assert response.json()["data"] == {
+        "rtsp_url": "rtsp://admin:Sup3r%40Secret@10.0.0.5:554/cam/realmonitor?channel=1&subtype=0",
+        "substream_url": "rtsp://admin:Sup3r%40Secret@10.0.0.5:554/cam/realmonitor?channel=1&subtype=1",
+    }
+    audit = (await db.scalars(select(AuditLog).where(AuditLog.action == "camera.view_stream_urls"))).one()
+    assert audit.entity_id == str(camera_id) and "Sup3r" not in str(audit.new_values)
+    # The list and detail responses still never carry credentials.
+    assert "Sup3r" not in (await admin.get(f"/api/v1/cameras/{camera_id}")).text
+    assert (await admin.get("/api/v1/cameras/999/stream-urls")).status_code == 404
+    hr = await make_api(await make_user(db, UserRole.HR_ADMIN, "hr"))
+    assert (await hr.get(f"/api/v1/cameras/{camera_id}/stream-urls")).status_code == 403

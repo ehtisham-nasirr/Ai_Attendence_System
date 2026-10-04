@@ -5,7 +5,7 @@ from typing import Annotated
 from facetrack_common.constants import CameraRole
 from facetrack_common.models import Camera, User
 from facetrack_common.schemas.envelope import ApiResponse, PaginatedResponse
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Response, status
 
 from app.api.deps import DbDep, PageDep
 from app.core.exceptions import NotFound
@@ -14,7 +14,14 @@ from app.core.security import Permission, require_permission
 from app.domain.cameras import service
 from app.repositories import camera_repo
 from app.repositories.base import get_live
-from app.schemas.camera import CameraCreate, CameraLiveOut, CameraOut, CameraTestOut, CameraUpdate
+from app.schemas.camera import (
+    CameraCreate,
+    CameraLiveOut,
+    CameraOut,
+    CameraStreamUrlsOut,
+    CameraTestOut,
+    CameraUpdate,
+)
 
 router = APIRouter(prefix="/cameras", tags=["cameras"])
 Operator = Annotated[User, require_permission(Permission.CAMERAS_MANAGE)]
@@ -46,7 +53,8 @@ async def get_camera(camera_id: int, db: DbDep, _: Viewer) -> ApiResponse[Camera
     "", status_code=status.HTTP_201_CREATED, response_model=ApiResponse[CameraOut], summary="Add a camera"
 )
 async def create_camera(payload: CameraCreate, db: DbDep, actor: Operator) -> ApiResponse[CameraOut]:
-    """The RTSP URL (with credentials) is stored AES-256 encrypted and never returned (FR-1, NFR-8)."""
+    """The RTSP URL (with credentials) is stored AES-256 encrypted (FR-1, NFR-8). It is returned only by
+    `GET /cameras/{id}/stream-urls`, to camera managers (Q63)."""
     camera = await service.create_camera(db, payload, actor)
     return created((await service.to_out([camera]))[0], "Camera created.")
 
@@ -57,6 +65,18 @@ async def update_camera(
 ) -> ApiResponse[CameraOut]:
     camera = await service.update_camera(db, camera_id, payload, actor)
     return ok((await service.to_out([camera]))[0], "Camera updated.")
+
+
+@router.get(
+    "/{camera_id}/stream-urls",
+    response_model=ApiResponse[CameraStreamUrlsOut],
+    summary="Saved stream links for the edit form (camera managers)",
+)
+async def stream_urls(
+    camera_id: int, db: DbDep, actor: Operator, response: Response
+) -> ApiResponse[CameraStreamUrlsOut]:
+    response.headers["Cache-Control"] = "no-store"
+    return ok(await service.stream_urls(db, camera_id, actor), "Stream links retrieved.")
 
 
 @router.delete("/{camera_id}", status_code=status.HTTP_204_NO_CONTENT)

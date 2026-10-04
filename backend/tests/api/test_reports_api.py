@@ -97,3 +97,39 @@ async def test_export_uses_the_requesting_users_scope(
     await asyncio.to_thread(export_report, *no_celery[-1][1])
     job = (await api.get(f"/api/v1/jobs/{response.json()['data']['job_id']}")).json()["data"]
     assert job["status"] == "succeeded" and job["message"] == "0 rows"  # S1's day is not theirs
+
+
+SHEET = {
+    "title": "Event log",
+    "file_name": "events-2026-10-04.xlsx",
+    "columns": ["Time", "Status"],
+    "rows": [
+        [{"value": "17:03"}, {"value": "Recognised", "tone": "ok"}],
+        [{"value": "17:04"}, {"value": "Unknown", "tone": "warn"}],
+    ],
+}
+
+
+async def test_list_export_returns_a_coloured_xlsx_and_is_audited(make_api, db: AsyncSession) -> None:  # type: ignore[no-untyped-def]
+    await make_org(db)
+    operator = await make_api(await make_user(db, UserRole.OPERATOR, "op"))
+    response = await operator.post("/api/v1/reports/sheet", json=SHEET)
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("application/vnd.openxmlformats")
+    assert 'filename="events-2026-10-04.xlsx"' in response.headers["content-disposition"]
+    assert response.content[:2] == b"PK"
+    entry = (await db.scalars(select(AuditLog).where(AuditLog.action == "list.export"))).one()
+    assert entry.new_values == {"title": "Event log", "rows": 2}
+
+
+async def test_list_export_rejects_bad_input_and_anonymous_users(make_api, db: AsyncSession) -> None:  # type: ignore[no-untyped-def]
+    await make_org(db)
+    user = await make_api(await make_user(db, UserRole.HR_ADMIN, "hr"))
+    ragged = {**SHEET, "rows": [[{"value": "only one cell"}]]}
+    assert (await user.post("/api/v1/reports/sheet", json=ragged)).status_code == 422
+    bad_tone = {**SHEET, "rows": [[{"value": "a"}, {"value": "b", "tone": "pink"}]]}
+    assert (await user.post("/api/v1/reports/sheet", json=bad_tone)).status_code == 422
+    bad_name = {**SHEET, "file_name": "../../etc/passwd"}
+    assert (await user.post("/api/v1/reports/sheet", json=bad_name)).status_code == 422
+    anonymous = await make_api()
+    assert (await anonymous.post("/api/v1/reports/sheet", json=SHEET)).status_code == 401

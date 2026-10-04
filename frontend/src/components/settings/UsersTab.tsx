@@ -56,7 +56,10 @@ export function UsersTab() {
       {
         id: "status",
         header: "Status",
-        meta: { exportValue: (u) => (u.is_active ? "active" : "inactive") },
+        meta: {
+          exportValue: (u) => (u.is_active ? "Active" : "Inactive"),
+          exportTone: (u) => (u.is_active ? "ok" : "neutral"),
+        },
         cell: ({ row }) => (
           <div className="flex gap-1">
             <StatusBadge label={row.original.is_active ? "Active" : "Inactive"} tone={row.original.is_active ? "ok" : "neutral"} />
@@ -116,6 +119,7 @@ export function UsersTab() {
         getRowId={(row) => String(row.id)}
         exportAll={() => fetchAllPages((p, page_size) => listUsers({ ...params, page: p, page_size }))}
         exportFileName="users.csv"
+        exportTitle="Users"
         toolbar={
           <>
             <SearchInput

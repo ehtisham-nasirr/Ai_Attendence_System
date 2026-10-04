@@ -1,7 +1,7 @@
-"""Excel (XlsxWriter) and PDF (WeasyPrint) exports of a report (FR-31).
+"""Excel (XlsxWriter) and PDF (WeasyPrint) exports of a report (FR-31), and Excel exports of list views.
 
 Times are shown in each row's employee timezone; minutes as h:mm. PDF is meant for reading and printing,
-so it is capped; Excel always contains every row.
+so it is capped; Excel always contains every row. Every sheet uses the portal's status colours (styles.py).
 """
 
 import io
@@ -13,7 +13,18 @@ from zoneinfo import ZoneInfo
 from facetrack_common.constants import AttendanceStatus
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from app.schemas.report import ReportColumn, ReportOut
+from app.domain.reports.styles import (
+    BORDER,
+    BRAND,
+    HEADER_TEXT,
+    LEGEND,
+    LETTER_TONES,
+    META_FILL,
+    TONE_COLOURS,
+    ZEBRA_FILL,
+    status_tone,
+)
+from app.schemas.report import ReportColumn, ReportOut, Tone
 
 PDF_MAX_ROWS = 5_000
 _TEMPLATES = Environment(
@@ -79,54 +90,182 @@ def _meta(report: ReportOut, filters_text: str, generated_by: str) -> list[tuple
     ]
 
 
-def to_xlsx(report: ReportOut, filters_text: str, generated_by: str) -> bytes:
-    import xlsxwriter  # noqa: PLC0415  # heavy; only the worker needs it
+def cell_tone(column: ReportColumn, row: dict[str, Any], text: str) -> Tone | None:
+    """Status colour of one cell: attendance status columns and register letters (§13)."""
+    if column.kind == "status":
+        return status_tone(row.get(column.key))
+    if column.kind == "letter":
+        return LETTER_TONES.get(text)
+    return None
 
-    buffer = io.BytesIO()
-    workbook = xlsxwriter.Workbook(buffer, {"in_memory": True, "strings_to_formulas": False})
-    bold = workbook.add_format({"bold": True})
-    header = workbook.add_format({"bold": True, "bg_color": "#E2E8F0", "border": 1})
-    sheet = workbook.add_worksheet(report.title[:31])
-    row = 0
-    for label, value in _meta(report, filters_text, generated_by):
-        sheet.write(row, 0, label, bold)
-        sheet.write_string(row, 1, value)
-        row += 1
-    row += 1
-    for col, column in enumerate(report.columns):
-        sheet.write(row, col, column.label, header)
-        width = (
-            6
-            if column.kind == "letter"
-            else 12
-            if column.kind in ("time", "minutes", "count", "bool")
-            else 22
+
+class _Formats:
+    """XlsxWriter formats of one workbook, made once and reused (a workbook has a format limit)."""
+
+    def __init__(self, workbook: Any) -> None:
+        border = {"border": 1, "border_color": BORDER, "valign": "vcenter"}
+        self._workbook = workbook
+        self._border = border
+        self.title = workbook.add_format({"bold": True, "font_size": 15, "font_color": BRAND})
+        self.meta_label = workbook.add_format(
+            {"bold": True, "bg_color": META_FILL, "font_color": BRAND, **border}
         )
+        self.meta_value = workbook.add_format({"bg_color": META_FILL, **border})
+        self.header = workbook.add_format(
+            {"bold": True, "bg_color": BRAND, "font_color": HEADER_TEXT, "text_wrap": True, **border}
+        )
+        self._cells: dict[tuple[str | None, bool], Any] = {}
+
+    def cell(self, tone: str | None, zebra: bool) -> Any:
+        key = (tone, zebra)
+        if key not in self._cells:
+            spec: dict[str, Any] = dict(self._border)
+            if tone is not None:
+                fill, text = TONE_COLOURS[tone]
+                spec |= {"bg_color": fill, "font_color": text, "bold": True, "align": "center"}
+            elif zebra:
+                spec["bg_color"] = ZEBRA_FILL
+            self._cells[key] = self._workbook.add_format(spec)
+        return self._cells[key]
+
+
+Cell = tuple[str | float | None, Tone | None]
+
+
+def _write_heading(sheet: Any, formats: _Formats, title: str, meta: list[tuple[str, str]]) -> int:
+    """Title and meta block; returns the first free row."""
+    sheet.set_row(0, 24)
+    sheet.write_string(0, 0, f"FaceTrack — {title}", formats.title)
+    for offset, (label, value) in enumerate(meta, start=1):
+        sheet.write_string(offset, 0, label, formats.meta_label)
+        sheet.write_string(offset, 1, _sanitize(value), formats.meta_value)
+    return len(meta) + 2
+
+
+def _write_table(
+    sheet: Any,
+    formats: _Formats,
+    header_row: int,
+    headers: list[str],
+    widths: list[int],
+    rows: list[list[Cell]],
+) -> None:
+    for col, (label, width) in enumerate(zip(headers, widths, strict=True)):
+        sheet.write_string(header_row, col, label, formats.header)
         sheet.set_column(col, col, width)
-    header_row = row
-    for record in report.rows:
+    sheet.set_row(header_row, 30)
+    row = header_row
+    for index, cells in enumerate(rows):
         row += 1
-        for col, column in enumerate(report.columns):
-            text = format_cell(column, record, report.timezone)
-            if not text:
-                continue  # empty cells stay empty, so Excel filters on "(Blanks)" work
-            if column.kind == "count":
-                sheet.write_number(row, col, float(text))
+        zebra = index % 2 == 1
+        for col, (value, tone) in enumerate(cells):
+            style = formats.cell(tone, zebra)
+            if value is None or value == "":
+                sheet.write_blank(row, col, None, style)  # stays empty, so "(Blanks)" filters work
+            elif isinstance(value, (int, float)):
+                sheet.write_number(row, col, value, style)
             else:
-                sheet.write_string(row, col, _sanitize(text))
-    if report.rows:
-        sheet.autofilter(header_row, 0, row, len(report.columns) - 1)
+                sheet.write_string(row, col, _sanitize(value), style)
+    if rows:
+        sheet.autofilter(header_row, 0, row, len(headers) - 1)
     sheet.freeze_panes(header_row + 1, 0)
 
-    summary = workbook.add_worksheet("Summary")
-    for index, item in enumerate(report.summary):
-        summary.write(index, 0, item.label, bold)
-        shown = format_minutes(int(item.value)) if item.kind == "minutes" else item.value
-        if isinstance(shown, (int, float)):
-            summary.write_number(index, 1, shown)
+
+def _write_summary(sheet: Any, formats: _Formats, title: str, items: list[tuple[str, Cell]]) -> None:
+    sheet.set_column(0, 0, 44)
+    sheet.set_column(1, 1, 16)
+    sheet.set_row(0, 24)
+    sheet.write_string(0, 0, f"Summary — {title}", formats.title)
+    sheet.write_string(2, 0, "Item", formats.header)
+    sheet.write_string(2, 1, "Value", formats.header)
+    row = 2
+    for index, (label, (value, tone)) in enumerate(items):
+        row += 1
+        sheet.write_string(row, 0, label, formats.cell(tone, index % 2 == 1))
+        style = formats.cell(tone, index % 2 == 1)
+        if isinstance(value, (int, float)):
+            sheet.write_number(row, 1, value, style)
         else:
-            summary.write_string(index, 1, str(shown))
-    summary.set_column(0, 0, 24)
+            sheet.write_string(row, 1, "" if value is None else str(value), style)
+    row += 2
+    sheet.write_string(row, 0, "Colour legend", formats.header)
+    for label, tone in LEGEND:
+        row += 1
+        sheet.write_string(row, 0, label, formats.cell(tone, False))
+
+
+def _report_width(column: ReportColumn) -> int:
+    if column.kind == "letter":
+        return 5
+    return 12 if column.kind in ("time", "minutes", "count", "bool", "status", "date") else 24
+
+
+def _workbook(buffer: io.BytesIO) -> Any:
+    import xlsxwriter  # noqa: PLC0415  # heavy; only the worker and the export route need it
+
+    return xlsxwriter.Workbook(buffer, {"in_memory": True, "strings_to_formulas": False})
+
+
+def to_xlsx(report: ReportOut, filters_text: str, generated_by: str) -> bytes:
+    buffer = io.BytesIO()
+    workbook = _workbook(buffer)
+    formats = _Formats(workbook)
+    sheet = workbook.add_worksheet(report.title[:31])
+    header_row = _write_heading(sheet, formats, report.title, _meta(report, filters_text, generated_by))
+    rows: list[list[Cell]] = []
+    for record in report.rows:
+        cells: list[Cell] = []
+        for column in report.columns:
+            text = format_cell(column, record, report.timezone)
+            if not text:
+                cells.append((None, None))
+            elif column.kind == "count":
+                cells.append((float(text), None))
+            else:
+                cells.append((text, cell_tone(column, record, text)))
+        rows.append(cells)
+    _write_table(
+        sheet,
+        formats,
+        header_row,
+        [c.label for c in report.columns],
+        [_report_width(c) for c in report.columns],
+        rows,
+    )
+    items: list[tuple[str, Cell]] = []
+    for item in report.summary:
+        shown = format_minutes(int(item.value)) if item.kind == "minutes" else item.value
+        items.append((item.label, (shown if isinstance(shown, (int, float)) else str(shown), None)))
+    _write_summary(workbook.add_worksheet("Summary"), formats, report.title, items)
+    workbook.close()
+    return buffer.getvalue()
+
+
+def sheet_to_xlsx(
+    title: str, headers: list[str], rows: list[list[Cell]], generated: str, generated_by: str
+) -> bytes:
+    """A list view exported as it is shown, with its status colours (§13 "export on every list", Q62)."""
+    buffer = io.BytesIO()
+    workbook = _workbook(buffer)
+    formats = _Formats(workbook)
+    sheet = workbook.add_worksheet(title[:31])
+    meta = [("Generated", generated), ("Generated by", generated_by), ("Rows", str(len(rows)))]
+    header_row = _write_heading(sheet, formats, title, meta)
+    widths = []
+    for col, header in enumerate(headers):
+        longest = max((len(str(r[col][0])) for r in rows[:500] if r[col][0] is not None), default=0)
+        widths.append(min(max(len(header), longest, 6) + 2, 50))
+    _write_table(sheet, formats, header_row, headers, widths, rows)
+    # Summary: how many rows carry each coloured value, per column (e.g. Status: Recognised 12).
+    counts: dict[tuple[str, str, Tone], int] = {}
+    for cells in rows:
+        for col, (value, tone) in enumerate(cells):
+            if tone is not None and value not in (None, ""):
+                key = (headers[col], str(value), tone)
+                counts[key] = counts.get(key, 0) + 1
+    items: list[tuple[str, Cell]] = [("Rows", (len(rows), None))]
+    items += [(f"{header}: {value}", (count, tone)) for (header, value, tone), count in counts.items()]
+    _write_summary(workbook.add_worksheet("Summary"), formats, title, items)
     workbook.close()
     return buffer.getvalue()
 
@@ -135,11 +274,19 @@ def to_pdf(report: ReportOut, filters_text: str, generated_by: str) -> bytes:
     from weasyprint import HTML  # noqa: PLC0415  # heavy; only the worker needs it
 
     rows = report.rows[:PDF_MAX_ROWS]
+    cells = []
+    for record in rows:
+        texts = [format_cell(c, record, report.timezone) for c in report.columns]
+        pairs = zip(report.columns, texts, strict=True)
+        cells.append([(t, cell_tone(c, record, t) if t else None) for c, t in pairs])
     html = _TEMPLATES.get_template("report.html").render(
         report=report,
         meta=_meta(report, filters_text, generated_by),
         columns=report.columns,
-        rows=[[format_cell(c, r, report.timezone) for c in report.columns] for r in rows],
+        rows=cells,
+        tones=TONE_COLOURS,
+        brand=BRAND,
+        legend=LEGEND,
         summary=[
             (item.label, format_minutes(int(item.value)) if item.kind == "minutes" else item.value)
             for item in report.summary

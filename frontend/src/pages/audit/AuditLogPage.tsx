@@ -97,6 +97,7 @@ export function AuditLogPage() {
         getRowId={(row) => String(row.id)}
         exportAll={() => exportAuditLogs(filters)}
         exportFileName="audit-log.csv"
+        exportTitle="Audit log"
         toolbar={
           <>
             <SearchInput value={url.get("action") ?? ""} onChange={(action) => url.set({ action })} placeholder="Action, e.g. employee.update" />

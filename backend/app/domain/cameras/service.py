@@ -27,6 +27,7 @@ from app.schemas.camera import (
     CameraLiveOut,
     CameraOut,
     CameraRuntimeOut,
+    CameraStreamUrlsOut,
     CameraTestOut,
     CameraUpdate,
 )
@@ -170,6 +171,26 @@ async def update_camera(db: AsyncSession, camera_id: int, payload: CameraUpdate,
     await engine_client.notify_engines("cameras_sync")
     await _sync_live_path(camera)
     return camera
+
+
+async def stream_urls(db: AsyncSession, camera_id: int, actor: User) -> CameraStreamUrlsOut:
+    """Saved links with credentials, so the edit form shows what is stored (Q63). Only camera managers can
+    call this; every view is audit-logged without the links themselves. Stored encrypted as before (NFR-8)."""
+    camera = await get_live(db, Camera, camera_id)
+    if camera is None:
+        raise NotFound("Camera not found.")
+    cipher = get_cipher()
+    out = CameraStreamUrlsOut(
+        rtsp_url=cipher.decrypt_str(camera.rtsp_url_encrypted, CRYPTO_PURPOSE_CAMERA_URL),
+        substream_url=(
+            cipher.decrypt_str(camera.substream_url_encrypted, CRYPTO_PURPOSE_CAMERA_URL)
+            if camera.substream_url_encrypted
+            else None
+        ),
+    )
+    async with transaction(db):
+        await audit.record(db, actor, "camera.view_stream_urls", "camera", camera_id)
+    return out
 
 
 async def delete_camera(db: AsyncSession, camera_id: int, actor: User) -> None:
