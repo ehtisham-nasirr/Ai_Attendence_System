@@ -10,17 +10,18 @@ export function CameraTestPanel({
   result,
   pending,
   onTest,
-  disabled,
+  disabledReason,
 }: {
   result: CameraTestOut | null;
   pending: boolean;
   onTest: () => void;
-  disabled?: boolean;
+  /** Why the test cannot run yet; the test always uses the saved stream link. */
+  disabledReason?: string;
 }) {
   return (
     <div className="space-y-3 rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={onTest} disabled={pending || disabled}>
+        <Button type="button" variant="outline" size="sm" onClick={onTest} disabled={pending || Boolean(disabledReason)}>
           <PlugZap aria-hidden /> {pending ? "Testing…" : "Test connection"}
         </Button>
         {result &&
@@ -39,7 +40,7 @@ export function CameraTestPanel({
           {connectionHint(result.error) && <p className="text-muted-foreground">{connectionHint(result.error)}</p>}
         </div>
       )}
-      {disabled && <p className="text-muted-foreground text-xs">Save the camera to test the stream.</p>}
+      {disabledReason && <p className="text-muted-foreground text-xs">{disabledReason}</p>}
     </div>
   );
 }

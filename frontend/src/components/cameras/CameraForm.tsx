@@ -87,10 +87,16 @@ export function CameraForm({ camera, onSaved }: { camera?: CameraOut; onSaved: (
     resolver: zodResolver(cameraSchema(!camera)),
     defaultValues: toValues(camera),
   });
-  const [role, alwaysOn, defaultFps, defaultThreshold] = useWatch({
+  const [role, alwaysOn, defaultFps, defaultThreshold, newUrl, newSubstreamUrl] = useWatch({
     control: form.control,
-    name: ["role", "always_on", "use_default_fps", "use_default_threshold"],
+    name: ["role", "always_on", "use_default_fps", "use_default_threshold", "rtsp_url", "substream_url"],
   });
+  // The engine tests the saved stream link, so a link typed but not yet saved would not be the one tested.
+  const testBlockedReason = !saved
+    ? "Save the camera to test the stream."
+    : newUrl || newSubstreamUrl
+      ? "Save changes first: Test connection checks the saved stream link, not the one typed above."
+      : undefined;
   const snapshot = testResult?.ok && testResult.snapshot_jpeg_b64 ? `data:image/jpeg;base64,${testResult.snapshot_jpeg_b64}` : null;
 
   const runTest = async (cameraId: number) => {
@@ -109,7 +115,7 @@ export function CameraForm({ camera, onSaved }: { camera?: CameraOut; onSaved: (
       setSaved(result.data);
       form.reset({ ...values, rtsp_url: "", substream_url: "", clear_substream: false });
       onSaved(result.data);
-      if (!saved) await runTest(result.data.id); // FR-2: test on save
+      if (!saved || values.rtsp_url) await runTest(result.data.id); // FR-2: test on save and on a new link
     } catch (error) {
       showFormError(form, error);
     }
@@ -261,7 +267,7 @@ export function CameraForm({ camera, onSaved }: { camera?: CameraOut; onSaved: (
         <CameraTestPanel
           result={testResult}
           pending={test.isPending}
-          disabled={!saved}
+          disabledReason={testBlockedReason}
           onTest={() => saved && void runTest(saved.id)}
         />
 
