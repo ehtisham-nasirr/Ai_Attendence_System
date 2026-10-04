@@ -37,7 +37,9 @@ class FaceTracker:
                 data={"index": np.arange(len(detections))},
             )
         )
-        if tracked.tracker_id is None:
+        # ByteTrack returns an empty Detections without our "index" data when no track is confirmed
+        # in this frame (e.g. a new face below the activation score); that is "no faces", not an error.
+        if tracked.tracker_id is None or len(tracked) == 0 or "index" not in tracked.data:
             return []
         return [
             (int(track_id), detections[int(index)])

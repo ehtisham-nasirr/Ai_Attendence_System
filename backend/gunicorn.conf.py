@@ -14,3 +14,6 @@ accesslog = None
 errorlog = "-"
 # Nginx is the only client and sets X-Forwarded-For / X-Forwarded-Proto.
 forwarded_allow_ips = "*"
+# Gunicorn's runtime control socket (gunicornc) is not used; it would also need a home directory that
+# the unprivileged container user does not have.
+control_socket_disable = True
