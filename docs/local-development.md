@@ -8,14 +8,14 @@ Rules for test machines (CLAUDE.md §1.3, standards/18):
 - Never commit or share face photos, clips, `.env` files or keys.
 
 How to read this guide:
-- Run every command in the **Ubuntu terminal** (WSL), unless a step says PowerShell or Git Bash.
-- Your project folder `D:\Applications\Atlas\Attendence_System\Ai_Attendence_System` is `/mnt/d/Applications/Atlas/Attendence_System/Ai_Attendence_System` in Ubuntu. If your folder is somewhere else, change the path.
+- Run every command in the **Ubuntu terminal** (WSL), unless a step says PowerShell.
+- The project lives **inside Ubuntu**, in `~/Ai_Attendence_System` (Windows Explorer: `\\wsl$\Ubuntu\home\<your Ubuntu user>\Ai_Attendence_System`). Do not run it from a Windows drive (`/mnt/d/...`): under Rancher Desktop, Docker does not reliably see files there (seen on the owner's laptop: `not a directory` for `mediamtx.yml`, clips not found, `Permission denied` for photos).
+- The `D:` drive is used only to receive the bundle file: `D:\Applications\Atlas\Attendence_System\` is `/mnt/d/Applications/Atlas/Attendence_System/` in Ubuntu.
 
 ## 1. What you need
 
-- Windows 11, 16 GB RAM recommended, at least 15 GB free disk space.
+- Windows 11, at least 15 GB free disk space. 16 GB RAM is comfortable; with 8 GB RAM, do step 2.1 first, or WSL can run out of memory and the Ubuntu terminal closes and will not reopen.
 - [Rancher Desktop](https://rancherdesktop.io/) and Ubuntu for WSL (Microsoft Store).
-- Git for Windows (optional; only for Git Bash in step 5).
 - Internet access for the first build (step 6).
 
 ## 2. Set up Rancher Desktop (once)
@@ -33,21 +33,38 @@ How to read this guide:
 
 Use `docker` only from Ubuntu. In PowerShell it fails with `timed out dialing Hyper-V socket`.
 
+### 2.1 Laptops with 8 GB RAM
+
+In PowerShell, give WSL a fixed memory limit plus swap:
+```powershell
+Set-Content -Path "$env:USERPROFILE\.wslconfig" -Value "[wsl2]`nmemory=4GB`nswap=8GB" -Encoding ascii
+```
+Then quit Rancher Desktop (tray icon → **Quit**), run `wsl --shutdown`, check that `wsl -l -v` shows every line **Stopped**, and start Rancher Desktop again. In step 4.2 also add `ENGINE_DEV_MEMORY=2g` and `WEB_CONCURRENCY=1` to `infra/.env`.
+
 ## 3. Get the code (no GitHub needed)
 
 The office network blocks github.com. IT sends the code as a **git bundle** file (`Ai_Attendence_System.bundle`).
 
-**First time.** Put the bundle file in `D:\Applications\Atlas\Attendence_System\`, then:
+**First time.** Put the bundle file in `D:\Applications\Atlas\Attendence_System\`, then clone it into Ubuntu's own folder:
 ```bash
-cd /mnt/d/Applications/Atlas/Attendence_System
-git clone -b main Ai_Attendence_System.bundle Ai_Attendence_System
+git clone -b main /mnt/d/Applications/Atlas/Attendence_System/Ai_Attendence_System.bundle ~/Ai_Attendence_System
 ```
 
 **Updates.** Replace the bundle file with the new one, then:
 ```bash
-cd /mnt/d/Applications/Atlas/Attendence_System/Ai_Attendence_System
-git pull ../Ai_Attendence_System.bundle main
+cd ~/Ai_Attendence_System
+git pull /mnt/d/Applications/Atlas/Attendence_System/Ai_Attendence_System.bundle main
 ```
+
+**Moving an existing copy from `D:` into Ubuntu.** The database, photos and clips are in Docker volumes of the project `facetrack`, so they carry over:
+```bash
+cd /mnt/d/Applications/Atlas/Attendence_System/Ai_Attendence_System/infra && docker compose down
+git clone /mnt/d/Applications/Atlas/Attendence_System/Ai_Attendence_System ~/Ai_Attendence_System
+cp .env ~/Ai_Attendence_System/infra/ && cp env/*.env ~/Ai_Attendence_System/infra/env/ && cp nginx/certs/*.pem ~/Ai_Attendence_System/infra/nginx/certs/
+mkdir -p ~/Ai_Attendence_System/infra/data/videos && cp data/videos/* ~/Ai_Attendence_System/infra/data/videos/
+cd ~/Ai_Attendence_System/infra && docker compose up -d
+```
+Never add `-v` to `docker compose down`: it deletes those volumes.
 
 **ZIP instead of a bundle.** Extract it so that `Ai_Attendence_System` contains `README.md`, `infra`, `backend` and so on. For each update:
 1. Stop the system: `docker compose stop` in the old `infra` folder.
@@ -57,7 +74,7 @@ git pull ../Ai_Attendence_System.bundle main
 
 **Line endings (once).** Copies made before `.gitattributes` was added (commit `d55a248`, 4 October 2026, 12:40 Pakistan time) can still have Windows line endings. Check:
 ```bash
-cd /mnt/d/Applications/Atlas/Attendence_System/Ai_Attendence_System
+cd ~/Ai_Attendence_System
 git ls-files --eol | grep -c 'w/crlf'
 ```
 If it prints `0`, skip the rest of this step. Otherwise run:
@@ -69,7 +86,7 @@ This rewrites every file with Linux line endings. It throws away your own change
 ## 4. Configure (once)
 
 ```bash
-cd /mnt/d/Applications/Atlas/Attendence_System/Ai_Attendence_System/infra
+cd ~/Ai_Attendence_System/infra
 cp .env.example .env
 cp env/backend.env.example env/backend.env
 mkdir -p data/videos
@@ -143,25 +160,19 @@ On the laptop, the backup and monitoring services (backup, Prometheus, Alertmana
 
 In Ubuntu:
 ```bash
-cd /mnt/d/Applications/Atlas/Attendence_System/Ai_Attendence_System/infra
+cd ~/Ai_Attendence_System/infra
 sh nginx/gen-dev-cert.sh localhost
-```
-
-Or in Git Bash:
-```bash
-cd /d/Applications/Atlas/Attendence_System/Ai_Attendence_System/infra
-MSYS_NO_PATHCONV=1 sh nginx/gen-dev-cert.sh localhost
-```
-If openssl in Git Bash complains about `openssl.cnf`, another program has set `OPENSSL_CONF`. Run:
-```bash
-OPENSSL_CONF="$(cygpath -m /usr/ssl/openssl.cnf)" MSYS_NO_PATHCONV=1 sh nginx/gen-dev-cert.sh localhost
 ```
 
 The browser warns "Your connection isn't private", because you made this certificate yourself. Click **Advanced → Continue to localhost**.
 
-If the webcam does not start on the Enroll tab, make Windows trust the certificate. Run this in PowerShell, then restart the browser:
+If the webcam does not start on the Enroll tab, or Kaspersky blocks the page, make Windows trust the certificate. First copy it to the D: drive (Ubuntu):
+```bash
+cp ~/Ai_Attendence_System/infra/nginx/certs/fullchain.pem /mnt/d/Applications/Atlas/Attendence_System/facetrack-dev-cert.pem
+```
+Then in PowerShell, answer **Yes** to the Windows prompt, and restart the browser (close every window):
 ```powershell
-certutil -user -addstore Root D:\Applications\Atlas\Attendence_System\Ai_Attendence_System\infra\nginx\certs\fullchain.pem
+certutil -user -addstore Root D:\Applications\Atlas\Attendence_System\facetrack-dev-cert.pem
 ```
 
 ## 6. Start
@@ -176,7 +187,7 @@ The first build downloads base images and packages from these sites:
 If the office network blocks any of them, connect the laptop to a mobile hotspot for the build. The engine image is about 3 GB, so the first build can take a long time.
 
 ```bash
-cd /mnt/d/Applications/Atlas/Attendence_System/Ai_Attendence_System/infra
+cd ~/Ai_Attendence_System/infra
 docker compose up -d --build
 ```
 
@@ -222,7 +233,11 @@ Type the password and press Enter. Nothing shows while you type. The password ne
 ## 9. Test recognition with a recorded clip
 
 1. Record a 30 to 60 second clip with the Windows **Camera** app. Record yourself, or a colleague who agreed, walking towards the laptop with the face clearly visible. The app saves MP4 files in `Pictures\Camera Roll`.
-2. Copy the clip to `D:\Applications\Atlas\Attendence_System\Ai_Attendence_System\infra\data\videos\`. Use a simple name without spaces, for example `test1.mp4`. Then copy it into the engine (in `infra/`):
+2. Copy the clip into `~/Ai_Attendence_System/infra/data/videos/` with a simple name without spaces, for example (replace `<you>` and the file name):
+   ```bash
+   cp "/mnt/c/Users/<you>/Pictures/Camera Roll/WIN_20261004_16_20_00_Pro.mp4" ~/Ai_Attendence_System/infra/data/videos/test1.mp4
+   ```
+   Then copy it into the engine (in `infra/`):
    ```bash
    docker compose cp data/videos/. engine:/srv/videos
    docker compose exec engine ls -l /srv/videos
@@ -265,8 +280,6 @@ Notes:
 |---|---|
 | `git clone` or `git pull` from GitHub fails | The office network blocks github.com. Use the bundle file from IT (step 3). |
 | A container fails with `$'\r': command not found`, `bad interpreter`, `set: Illegal option -`, or `no such file or directory` for a `.sh` file | Windows line endings. Run the line-endings commands in step 3, then `docker compose up -d --build`. If PostgreSQL was first started while the files were broken, also do 11.1. |
-| Git Bash openssl says `subject name is expected to be in the format /type0=value0` | Add `MSYS_NO_PATHCONV=1` (step 5), or make the certificate in Ubuntu. |
-| Git Bash openssl complains about `openssl.cnf` | Another program set `OPENSSL_CONF`. Use the `OPENSSL_CONF="$(cygpath -m /usr/ssl/openssl.cnf)"` command in step 5. |
 | Ubuntu says `docker: command not found` | Start Rancher Desktop. Tick **WSL → Integrations → Ubuntu** and click **Apply**. Close and reopen Ubuntu. If it still fails, run `wsl --shutdown` in PowerShell and start Rancher Desktop again. |
 | `Cannot connect to the Docker daemon` | Rancher Desktop is not running yet. Start it and wait until it is ready. |
 | PowerShell says `timed out dialing Hyper-V socket` | Do not use docker from PowerShell. Use the Ubuntu terminal. |
@@ -281,6 +294,8 @@ Notes:
 | A file camera stays offline, and `docker compose logs engine` shows `No such file or directory: '/srv/videos/...'` | The clip was not copied into the engine, or the name is different (capital letters matter). Run `docker compose cp data/videos/. engine:/srv/videos`, then check with `docker compose exec engine ls -l /srv/videos`. |
 | The clip plays, but nobody is recognised | Check that the person has at least 3 accepted photos. The face in the clip must be large and sharp: walk close to the camera, in good light. Sightings that did not match appear in **Unknown faces**. Do not lower the match threshold to make it work (false matches are worse than misses). |
 | Live view of a file camera shows an error | Expected (step 9). |
+| The Ubuntu terminal closes by itself during a build or `docker compose up`, and will not open again | WSL ran out of memory. Do step 2.1 (`.wslconfig`), quit Rancher Desktop, `wsl --shutdown`, start Rancher Desktop again. Build the portal with the engine stopped: `docker compose stop engine && docker compose build nginx && docker compose up -d`. |
+| `mediamtx` (or another service) fails with `error mounting ... not a directory: Are you trying to mount a directory onto a file` | The project is on a Windows drive (`/mnt/d/...`). Move it into Ubuntu (step 3, *Moving an existing copy*). |
 | The browser warns that the connection is not private | Expected with the development certificate (step 5). |
 | The media check in step 6 says `Permission denied`, Enroll gives "An unexpected error occurred." with `Permission denied: '/srv/media/...'` in `docker compose logs backend`, or the engine logs `event delivery failed; buffering` with `PermissionError` | The engine is not running with the laptop overlay (step 4.5), so the services use the server-style `MEDIA_DIR` folder instead of the `media` volume. Check `docker compose config --services` lists `engine`, then run `docker compose up -d`. As a one-off repair of a running container: `docker compose exec -u root backend chown -R 10001:10001 /srv/media` (and the same for `engine`). Buffered events are delivered automatically once the engine can write. |
 | `docker compose logs nginx` repeats `grafana could not be resolved`, and https://localhost/grafana/ shows `502 Bad Gateway` | Expected on the laptop: Grafana is not started (step 4.5). The portal is not affected. |

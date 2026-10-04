@@ -71,7 +71,8 @@ uv run python scripts/sample_video.py recordings/sample.mp4 --seconds 60   # no 
 
 To run the engine in Docker together with the backend stack on one laptop or test machine, use the
 overlay `infra/docker-compose.dev.yml` (`make dev`, or the plain `docker compose` commands in
-`docs/local-development.md`). Put clips in `infra/data/videos/` and use the camera URL
+`docs/local-development.md`). Copy clips into the engine's `videos` volume
+(`docker compose cp data/videos/. engine:/srv/videos`) and use the camera URL
 `file:///srv/videos/<clip>.mp4` on engine node `node-1`. Live view is not available for file sources,
 because MediaMTX cannot pull `file://` URLs.
 
