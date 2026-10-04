@@ -7,7 +7,7 @@
 **Requirements:** FR-17, FR-15, FR-18, NFR-2, §10.1 step 9
 
 ## Summary
-The owner tested with a looping webcam clip of himself. He is enrolled and was recognised, but the Unknown faces screen still filled with his own face. Tracks that were too short for the 2-of-3 vote ended as Unknown, even when every crop matched him. Such a "known but unconfirmed" track now emits nothing. It is counted and logged instead. Nothing new becomes "recognized".
+The owner tested with a looping webcam clip of their own face. The owner is enrolled and was recognised, but the Unknown faces screen still filled with the same face. Tracks that were too short for the 2-of-3 vote ended as Unknown, even when every crop matched the owner. Such a "known but unconfirmed" track now emits nothing. It is counted and logged instead. Nothing new becomes "recognized".
 
 ## Changes Made
 - **The rule** (`app/pipeline/voting.py`, `points_to_one_employee`): an unconfirmed track is "known but unconfirmed" only when all three conditions hold:
@@ -116,12 +116,12 @@ A first soak attempt grew to 4.2 GB. tracemalloc traced this to the test doubles
 
   Against the old code this test fails: it emits the Unknown event the owner saw.
 - One existing test was changed on purpose. `test_fr17_short_track_without_embedding_gets_one_embed_then_unknown` used a score of 0.9 for A, which asserted exactly the behaviour this change replaces. It now uses 0.30 (below threshold) and still checks one embed followed by Unknown. The 0.9 case moved to the new "emits nothing" test.
-- Not tested here: a real face end to end. That needs the owner's rebuilt engine image and his enrolled face; the sandbox has no real faces.
+- Not tested here: a real face end to end. That needs the owner's rebuilt engine image and the enrolled face; the sandbox has no real faces.
 
 ## Notes
 - **Owner approval:** the owner answered the proposal with "jo tm mashrwa dy rhy wo b dekh lo" (2026-10-04). The decision, and its amendment of `docs/requirements.md` §10.1 step 9 and standards/17 §6, are recorded in `docs/adr/0006-known-short-tracks-not-unknown.md`. standards/17 §6 now points to the ADR. `docs/requirements.md` is a verbatim copy and is not edited.
 - **Review fix:** the first version also skipped short tracks on liveness cameras, so a brief spoof of an enrolled face left no evidence. Those cameras now keep every unconfirmed track as Unknown (`test_fr18_short_track_on_liveness_camera_is_still_unknown`).
 - **Trade-off (FR-27):** a skipped track never reaches the Unknown review queue. So a reviewer cannot use FR-27 to assign it to the employee (to create attendance from it) or add its snapshot to the gallery. If an employee's only sighting of the day was such a short track, HR must use a normal attendance correction. The counter shows how often this happens per camera.
-- **Strangers who resemble an employee:** a stranger whose crops match only one employee above threshold and margin is now also skipped instead of being logged as Unknown. He is still never marked present.
+- **Strangers who resemble an employee:** a stranger whose crops match only one employee above threshold and margin is now also skipped instead of being logged as Unknown. They are still never marked present.
 - **No configuration switch:** none was added, because the task defined the rule exactly. If the owner wants it per camera or switchable, that is a new setting and needs the backend `settings` table.
 - Grafana and alerts were not changed (infra is outside this task). A panel for the new counter would be useful.

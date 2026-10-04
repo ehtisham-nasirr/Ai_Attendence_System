@@ -5,7 +5,7 @@
 **Amends:** `docs/requirements.md` §10.1 step 9 and `Guardrails/standards/17-recognition-engine-cpu.md` §6 ("otherwise it becomes Unknown when the track ends")
 
 ## Context
-During laptop testing the owner's own face filled the Unknown faces screen. Most cards came from tracks that were too short to collect 3 crops, or that got only 1 vote, although every crop matched him. FR-17 asks that faces *below the match threshold* are logged as Unknown; these faces were above it, for exactly one employee.
+During laptop testing the owner's own face filled the Unknown faces screen. Most cards came from tracks that were too short to collect 3 crops, or that got only 1 vote, although every crop matched the owner. FR-17 asks that faces *below the match threshold* are logged as Unknown; these faces were above it, for exactly one employee.
 
 The owner's words (2026-10-04): "jo tm mashrwa dy rhy wo b dekh lo" ("look at the suggestion you are giving as well"). This was in reply to the proposal to stop logging such tracks as Unknown, in the same message that asked for one Unknown card per person.
 
@@ -23,6 +23,6 @@ The owner's words (2026-10-04): "jo tm mashrwa dy rhy wo b dekh lo" ("look at th
 
 ## Consequences
 - **No review for skipped tracks (FR-27).** A skipped track never reaches the Unknown review queue. If it was an employee's only sighting of the day, HR uses a normal attendance correction.
-- **Strangers who resemble one employee.** A stranger whose crops match only one employee is skipped, not logged. He is still never marked present.
+- **Strangers who resemble one employee.** A stranger whose crops match only one employee is skipped, not logged. They are still never marked present.
 - **Monitoring.** The counter shows how often tracks are skipped, per camera.
 - **Documents.** `docs/requirements.md` is a verbatim copy of the requirements document and is not edited. This ADR is the record of the change.
