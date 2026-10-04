@@ -75,6 +75,13 @@ class EngineSettings(BaseSettings):
     watchdog_no_frame_s: float = 10.0
     reconnect_min_s: float = 2.0
     reconnect_max_s: float = 60.0
+    # A camera that refuses the credentials (RTSP 401/403) is retried only after this long: some cameras
+    # (e.g. Dahua) lock the account after a few failures, and a retry every minute keeps it locked (Q61).
+    auth_retry_s: float = Field(default=900.0, ge=60.0)
+    # A camera process is restarted when it sends no status for this long. A new process gets the longer
+    # start grace for its first report, since spawning and imports can take 15-30 s on a busy node (Q61).
+    camera_hung_after_s: float = Field(default=30.0, gt=0)
+    camera_start_grace_s: float = Field(default=120.0, gt=0)
     stream_open_timeout_s: float = 10.0
     stream_read_timeout_s: float = 10.0
     worker_memory_limit_mb: int = 1500

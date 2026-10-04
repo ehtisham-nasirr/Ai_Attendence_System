@@ -584,6 +584,7 @@ def run_camera_process(
             reconnect_min_s=settings.reconnect_min_s,
             reconnect_max_s=settings.reconnect_max_s,
             allow_file_sources=settings.allow_file_sources,
+            auth_retry_s=settings.auth_retry_s,
         ),
     )
     store = create_object_store(

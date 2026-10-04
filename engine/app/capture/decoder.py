@@ -4,6 +4,8 @@
 - After switching back to full decoding, packets are dropped until the next keyframe so the decoder
   never produces frames with missing references.
 - Dropped streams reconnect with exponential backoff (2 s -> 60 s).
+- A camera that refuses the credentials (401/403) is retried only after `auth_retry_s` (default 15 min),
+  so the engine does not keep a camera that locks accounts after failed logins locked (Q61).
 - Decoded frames go into the 1-slot `LatestFrameBuffer`; nothing is queued.
 - Error text never contains the stream URL (it can carry camera credentials).
 """
@@ -26,6 +28,8 @@ from app.models.base import ImageBGR
 logger = logging.getLogger(__name__)
 
 _URL_PATTERN = re.compile(r"[a-zA-Z][a-zA-Z0-9+.-]*://\S+")
+# The camera answered but refused the credentials (RTSP 401 Unauthorized / 403 Forbidden).
+_AUTH_ERRORS = (av.error.HTTPUnauthorizedError, av.error.HTTPForbiddenError)
 
 
 def safe_error(exc: BaseException) -> str:
@@ -45,6 +49,7 @@ class DecoderSettings:
     reconnect_min_s: float
     reconnect_max_s: float
     allow_file_sources: bool
+    auth_retry_s: float = 900.0
 
 
 class StreamDecoder(threading.Thread):
@@ -90,11 +95,23 @@ class StreamDecoder(threading.Thread):
         while not self._stop_event.is_set():
             self._restart.clear()
             url = self._url
+            auth_refused = False
             try:
                 self._decode(url)
                 backoff = self._settings.reconnect_min_s
                 if is_file_source(url):
                     continue  # dev clips loop forever
+            except _AUTH_ERRORS as exc:
+                auth_refused = True
+                self.last_error = safe_error(exc)
+                logger.warning(
+                    "camera refused the credentials; waiting before the next attempt",
+                    extra={
+                        "camera_id": self.camera_id,
+                        "error": self.last_error,
+                        "retry_in_s": self._settings.auth_retry_s,
+                    },
+                )
             except (av.FFmpegError, OSError, ValueError, StopIteration) as exc:
                 self.last_error = safe_error(exc)
                 logger.warning(
@@ -106,6 +123,10 @@ class StreamDecoder(threading.Thread):
             if self._stop_event.is_set() or self._restart.is_set():
                 continue
             self.reconnects += 1
+            if auth_refused:
+                # A new URL or credentials restart the camera process, so a fixed link is tried at once.
+                self._stop_event.wait(self._settings.auth_retry_s)
+                continue
             self._stop_event.wait(backoff)
             backoff = min(backoff * 2, self._settings.reconnect_max_s)
 

@@ -56,8 +56,6 @@ from app.scheduler.ladder import DegradationLadder, LadderLimits
 
 logger = logging.getLogger(__name__)
 
-# A camera process that sends no status for this long is considered hung and restarted.
-_HUNG_AFTER_S = 30.0
 _CAMERA_RESTART_BACKOFF_MAX_S = 60.0
 
 
@@ -514,6 +512,13 @@ class EngineSupervisor:
                     },
                 )
 
+    def _is_hung(self, handle: _CameraHandle, now: float) -> bool:
+        """No status report for too long. A process that has not reported yet is still starting up
+        (spawn + imports), and restarting it then only starts over (and re-tries the camera login)."""
+        if handle.report is None:
+            return now - handle.started_at > self.settings.camera_start_grace_s
+        return now - handle.last_report_at > self.settings.camera_hung_after_s
+
     def _watch_children(self) -> None:
         while not self._stop.wait(2.0):
             before = self.pool.restarts
@@ -524,7 +529,7 @@ class EngineSupervisor:
             with self._lock:
                 for camera_id, handle in list(self._cameras.items()):
                     dead = not handle.process.is_alive()
-                    hung = now - handle.last_report_at > _HUNG_AFTER_S
+                    hung = self._is_hung(handle, now)
                     if not (dead or hung) or now < handle.next_restart_at:
                         continue
                     logger.error(

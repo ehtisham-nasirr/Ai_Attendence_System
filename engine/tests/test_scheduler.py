@@ -1,14 +1,16 @@
-"""Camera modes, degradation ladder, rate plans and operating hours (§10.4, NFR-15, standards/17)."""
+"""Camera modes, ladder, rate plans, operating hours and the camera watchdog (§10.4, NFR-15, standards/17)."""
 
 from datetime import datetime
 
 import pytest
 from facetrack_common.constants import CameraMode, CameraRole, LoadLevel
 
+from app.config import EngineSettings
 from app.scheduler.ladder import DegradationLadder, LadderLimits
 from app.scheduler.modes import CameraModeMachine, ModeTimings
 from app.scheduler.operating_hours import within_operating_hours, within_peak
 from app.scheduler.rates import RateSettings, plan_processing
+from app.scheduler.supervisor import EngineSupervisor, _CameraHandle
 
 TIMINGS = ModeTimings(cooldown_enter_s=3.0, cooldown_idle_s=10.0)
 LIMITS = LadderLimits(cpu_high_pct=85, cpu_high_s=30, lag_high_s=2, cpu_low_pct=60, cpu_low_s=120)
@@ -151,3 +153,17 @@ def test_peak_windows() -> None:
     peaks = [{"start": "08:00", "end": "10:30"}]
     assert within_peak(peaks, datetime(2026, 10, 5, 10, 29))
     assert not within_peak(peaks, datetime(2026, 10, 5, 10, 30))
+
+
+def test_watchdog_gives_a_starting_camera_process_the_start_grace(engine_settings: EngineSettings) -> None:
+    """Q61: spawning a camera process can take 15-30 s on a busy node. Calling it hung at 30 s restarted it
+    before its first report, over and over, and every restart tried the camera login again."""
+    supervisor = EngineSupervisor(engine_settings)  # 30 s hung limit, 120 s start grace (defaults)
+    handle = _CameraHandle(None, "fp", 1, None, None, started_at=1_000.0)  # type: ignore[arg-type]
+    handle.last_report_at = 1_000.0
+    assert not supervisor._is_hung(handle, now=1_031.0)  # still starting: no report yet
+    assert supervisor._is_hung(handle, now=1_121.0)  # never reported within the grace
+    handle.report = object()  # type: ignore[assignment]
+    handle.last_report_at = 1_100.0
+    assert not supervisor._is_hung(handle, now=1_129.0)
+    assert supervisor._is_hung(handle, now=1_131.0)  # was running, then silent for 30 s
