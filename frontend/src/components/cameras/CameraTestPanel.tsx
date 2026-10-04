@@ -2,6 +2,7 @@ import { PlugZap } from "lucide-react";
 
 import type { CameraTestOut } from "@/api/generated/model";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import { connectionHint } from "@/lib/cameraHints";
 import { Button } from "@/components/ui/button";
 
 /** FR-2: connection test result with the live snapshot. */
@@ -33,9 +34,10 @@ export function CameraTestPanel({
           ))}
       </div>
       {result && !result.ok && result.error && (
-        <p role="alert" className="text-destructive text-sm">
-          {result.error}
-        </p>
+        <div role="alert" className="space-y-1 text-sm">
+          <p className="text-destructive">{result.error}</p>
+          {connectionHint(result.error) && <p className="text-muted-foreground">{connectionHint(result.error)}</p>}
+        </div>
       )}
       {disabled && <p className="text-muted-foreground text-xs">Save the camera to test the stream.</p>}
     </div>

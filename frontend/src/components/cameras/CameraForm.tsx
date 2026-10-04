@@ -203,13 +203,21 @@ export function CameraForm({ camera, onSaved }: { camera?: CameraOut; onSaved: (
                 <FormLabel>Main stream URL</FormLabel>
                 <FormControl>
                   <Input
-                    type="password"
+                    type="text"
                     autoComplete="off"
-                    placeholder={saved ? `Stored (${saved.stream_host}). Leave blank to keep.` : "rtsp://user:password@10.0.0.5:554/Streaming/101"}
+                    spellCheck={false}
+                    autoCapitalize="off"
+                    placeholder={
+                      saved
+                        ? `Stored (${saved.stream_host}). Leave blank to keep.`
+                        : "rtsp://user:password@192.168.1.10:554/cam/realmonitor?channel=1&subtype=0"
+                    }
                     {...field}
                   />
                 </FormControl>
-                <FormDescription>Stored encrypted and never shown again.</FormDescription>
+                <FormDescription>
+                  Visible while you type; stored encrypted after saving and never shown again.
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -222,8 +230,10 @@ export function CameraForm({ camera, onSaved }: { camera?: CameraOut; onSaved: (
                 <FormLabel>Sub-stream URL (optional)</FormLabel>
                 <FormControl>
                   <Input
-                    type="password"
+                    type="text"
                     autoComplete="off"
+                    spellCheck={false}
+                    autoCapitalize="off"
                     placeholder={saved?.has_substream ? "Stored. Leave blank to keep." : "Lower resolution stream for idle detection"}
                     {...field}
                   />
