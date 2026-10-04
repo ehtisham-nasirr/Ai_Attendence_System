@@ -115,7 +115,7 @@ export function DataTable<T>({
   };
 
   return (
-    <div className="bg-card rounded-lg border">
+    <div className="bg-card overflow-hidden rounded-lg border shadow-xs">
       {(toolbar || exportAll) && (
         <div className="flex flex-wrap items-center gap-2 border-b p-3">
           <div className="flex flex-1 flex-wrap items-center gap-2">{toolbar}</div>

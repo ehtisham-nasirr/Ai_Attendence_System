@@ -406,7 +406,7 @@ export function CameraForm({ camera, onSaved }: { camera?: CameraOut; onSaved: (
           )}
         </div>
 
-        <div className="bg-background sticky bottom-0 flex justify-end gap-2 border-t py-3">
+        <div className="bg-popover sticky bottom-0 flex justify-end gap-2 border-t py-3">
           <Button type="submit" disabled={pending}>
             {pending ? "Saving…" : saved ? "Save changes" : "Add camera and test"}
           </Button>

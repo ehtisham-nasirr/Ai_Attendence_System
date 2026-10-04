@@ -1,13 +1,14 @@
 import { cn } from "@/lib/utils";
 import type { Tone } from "@/lib/labels";
 
+// A 10% tint keeps the label text >= 4.5:1 against its own badge in the light theme (WCAG AA).
 const toneClasses: Record<Tone, string> = {
-  ok: "bg-status-ok/12 text-status-ok ring-status-ok/30",
-  warn: "bg-status-warn/15 text-status-warn ring-status-warn/35",
-  bad: "bg-status-bad/12 text-status-bad ring-status-bad/30",
-  info: "bg-status-info/12 text-status-info ring-status-info/30",
-  neutral: "bg-status-neutral/12 text-status-neutral ring-status-neutral/30",
-  leave: "bg-status-leave/12 text-status-leave ring-status-leave/30",
+  ok: "bg-status-ok/10 text-status-ok ring-status-ok/25",
+  warn: "bg-status-warn/10 text-status-warn ring-status-warn/25",
+  bad: "bg-status-bad/10 text-status-bad ring-status-bad/25",
+  info: "bg-status-info/10 text-status-info ring-status-info/25",
+  neutral: "bg-status-neutral/10 text-status-neutral ring-status-neutral/25",
+  leave: "bg-status-leave/10 text-status-leave ring-status-leave/25",
 };
 
 const dotClasses: Record<Tone, string> = {

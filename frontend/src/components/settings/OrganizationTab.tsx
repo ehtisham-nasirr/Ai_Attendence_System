@@ -208,7 +208,7 @@ export function OrganizationTab() {
         rows={departments.data?.data}
         columns={[
           { header: "Name", cell: (d) => d.name },
-          { header: "Code", cell: (d) => <span className="font-mono text-xs">{d.code}</span> },
+          { header: "Code", cell: (d) => <span className="tabular-nums">{d.code}</span> },
         ]}
         isLoading={departments.isPending}
         error={departments.error}

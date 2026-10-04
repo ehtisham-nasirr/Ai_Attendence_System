@@ -22,7 +22,7 @@ const TableHeader = fwd(function TableHeader({ className, ...props }: React.Comp
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b", className)}
+      className={cn("bg-muted [&_tr]:border-b", className)}
       ref={ref as never}
       {...props}
     />
@@ -73,7 +73,7 @@ const TableHead = fwd(function TableHead({ className, ...props }: React.Componen
     <th
       data-slot="table-head"
       className={cn(
-        "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        "h-10 px-2 text-left align-middle font-semibold whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className
       )}
       ref={ref as never}
@@ -87,7 +87,7 @@ const TableCell = fwd(function TableCell({ className, ...props }: React.Componen
     <td
       data-slot="table-cell"
       className={cn(
-        "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        "px-2 py-2.5 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className
       )}
       ref={ref as never}

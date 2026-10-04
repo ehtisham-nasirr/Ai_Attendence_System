@@ -80,7 +80,7 @@ const FormItem = fwd(function FormItem({ className, ...props }: React.ComponentP
     <FormItemContext.Provider value={{ id }}>
       <div
         data-slot="form-item"
-        className={cn("grid gap-2", className)}
+        className={cn("grid content-start gap-2", className)}
         ref={ref as never}
       {...props}
       />

@@ -58,6 +58,8 @@ The menu and routes follow the user's permissions from `/auth/me`. The API enfor
 - **Status display:** always colour plus text (`StatusBadge`).
 - **Destructive actions:** go through `ConfirmDialog`. Biometric erasure and employee deletion also require typing the employee code.
 - **Settings:** lowering a recognition threshold or quality gate asks for an explicit confirmation before saving.
+- **Theme:** light (warm white / cream surfaces, one deep corporate-blue accent) is the default for every user, whatever the operating system's dark-mode setting. Dark and System stay selectable in the user menu; the choice is kept per browser in `localStorage` under `facetrack.theme.v2` (the old `facetrack.theme` key is ignored and removed, so browsers that had "system" saved start on light). Colours live only as tokens in `src/index.css` (`:root` = light, `.dark` = dark); components use the tokens, never raw colours. Text pairs in the light theme are at least 4.5:1 (WCAG AA), including status text on its own badge tint.
+- **Fonts:** the operating system's UI font, with no web fonts (on-premise, no external requests): `"Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif`, set as `--font-sans` in `src/index.css`. On Windows this is Segoe UI. Body text is 15px, tables, labels and navigation 14px (`text-sm`), and `text-xs` is raised to 13px for secondary text.
 - **UI components:** the shadcn/ui components are written for React 19. On React 18 they are wrapped with `fwd()` (`src/lib/forwardRef.ts`) so that refs reach the DOM; this matters for `asChild` triggers, Radix animations and form focus.
 
 ## Develop

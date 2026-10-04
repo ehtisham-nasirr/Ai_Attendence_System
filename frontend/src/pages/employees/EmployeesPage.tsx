@@ -39,7 +39,7 @@ const columns: ColumnDef<EmployeeOut>[] = [
     accessorKey: "employee_code",
     header: "Code",
     meta: { sortKey: "employee_code", exportValue: (e) => e.employee_code },
-    cell: ({ row }) => <span className="font-mono text-xs">{row.original.employee_code}</span>,
+    cell: ({ row }) => <span className="text-[12px] tabular-nums">{row.original.employee_code}</span>,
   },
   {
     accessorKey: "full_name",

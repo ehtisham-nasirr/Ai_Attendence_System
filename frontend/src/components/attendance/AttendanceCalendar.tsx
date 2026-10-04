@@ -72,7 +72,7 @@ export function AttendanceCalendar({
             </>
           );
           const className = cn(
-            "bg-card flex h-20 flex-col gap-0.5 rounded-md border border-l-4 p-1.5 text-left",
+            "bg-card flex min-h-20 flex-col gap-0.5 rounded-md border border-l-4 p-1.5 text-left",
             status ? toneBorder[status.tone] : "border-l-border",
           );
           return record && onSelect ? (

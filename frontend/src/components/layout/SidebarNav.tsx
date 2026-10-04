@@ -16,14 +16,14 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           onClick={onNavigate}
           className={({ isActive }) =>
             cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              "relative flex items-center gap-3 rounded-md border px-3 py-2 text-sm transition-colors",
               isActive
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                ? "bg-sidebar-accent text-sidebar-accent-foreground border-sidebar-border before:bg-sidebar-primary font-semibold shadow-xs before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r-full"
+                : "text-sidebar-foreground hover:bg-sidebar-accent/70 border-transparent font-medium",
             )
           }
         >
-          <Icon className="size-4 shrink-0" aria-hidden />
+          <Icon className="size-[1.125rem] shrink-0" aria-hidden />
           {label}
         </NavLink>
       ))}

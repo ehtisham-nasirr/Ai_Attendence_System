@@ -67,7 +67,7 @@ export function EventLogPage() {
           row.original.employee_name ? (
             <div>
               <p className="font-medium">{row.original.employee_name}</p>
-              <p className="text-muted-foreground font-mono text-xs">{row.original.employee_code}</p>
+              <p className="text-muted-foreground text-xs tabular-nums">{row.original.employee_code}</p>
             </div>
           ) : (
             <span className="text-muted-foreground">Unknown</span>

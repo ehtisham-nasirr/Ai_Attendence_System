@@ -14,7 +14,7 @@ export function ReportOverview({ report }: { report: ReportOut }) {
         {report.summary.map((item) => (
           <Card key={item.label} className="gap-1 py-3">
             <CardContent className="px-4">
-              <p className="text-muted-foreground text-xs">{item.label}</p>
+              <p className="text-muted-foreground text-sm">{item.label}</p>
               <p className="text-xl font-semibold tabular-nums">
                 {item.kind === "minutes" ? formatMinutes(Number(item.value)) : String(item.value)}
               </p>
@@ -31,13 +31,13 @@ export function ReportOverview({ report }: { report: ReportOut }) {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chart.data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
                 <CartesianGrid vertical={false} stroke="var(--border)" />
-                <XAxis dataKey={chart.x_key} tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
-                <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
+                <XAxis dataKey={chart.x_key} tickLine={false} axisLine={false} fontSize={12} stroke="var(--muted-foreground)" />
+                <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={12} stroke="var(--muted-foreground)" />
                 <Tooltip
                   cursor={{ fill: "var(--muted)" }}
-                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8 }}
+                  contentStyle={{ background: "var(--popover)", color: "var(--popover-foreground)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13 }}
                 />
-                {chart.series.length > 1 && <Legend wrapperStyle={{ fontSize: 12 }} />}
+                {chart.series.length > 1 && <Legend wrapperStyle={{ fontSize: 13 }} />}
                 {chart.series.map((series, index) => (
                   <Bar
                     key={series.key}

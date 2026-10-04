@@ -21,7 +21,7 @@ export function HourlyArrivalsChart({ data }: { data: HourlyCount[] }) {
               <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={12} stroke="var(--muted-foreground)" />
               <Tooltip
                 cursor={{ fill: "var(--muted)" }}
-                contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8 }}
+                contentStyle={{ background: "var(--popover)", color: "var(--popover-foreground)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13 }}
               />
               <Bar dataKey="count" name="Check-ins" fill="var(--chart-1)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
             </BarChart>

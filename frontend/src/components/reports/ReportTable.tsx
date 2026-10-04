@@ -21,7 +21,7 @@ function Cell({ column, row, timezone }: { column: ReportColumn; row: Record<str
     case "bool":
       return <>{value ? "Yes" : ""}</>;
     case "code":
-      return <span className="font-mono text-xs">{String(value)}</span>;
+      return <span className="tabular-nums">{String(value)}</span>;
     default:
       return <>{String(value)}</>;
   }

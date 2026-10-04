@@ -29,6 +29,19 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
           "--border-radius": "var(--radius)",
+          // richColors: use the theme's status tokens instead of Sonner's built-in palette.
+          "--success-bg": "color-mix(in oklab, var(--status-ok) 10%, var(--popover))",
+          "--success-border": "color-mix(in oklab, var(--status-ok) 30%, var(--popover))",
+          "--success-text": "var(--status-ok)",
+          "--info-bg": "color-mix(in oklab, var(--status-info) 10%, var(--popover))",
+          "--info-border": "color-mix(in oklab, var(--status-info) 30%, var(--popover))",
+          "--info-text": "var(--status-info)",
+          "--warning-bg": "color-mix(in oklab, var(--status-warn) 10%, var(--popover))",
+          "--warning-border": "color-mix(in oklab, var(--status-warn) 30%, var(--popover))",
+          "--warning-text": "var(--status-warn)",
+          "--error-bg": "color-mix(in oklab, var(--status-bad) 10%, var(--popover))",
+          "--error-border": "color-mix(in oklab, var(--status-bad) 30%, var(--popover))",
+          "--error-text": "var(--status-bad)",
         } as React.CSSProperties
       }
       {...props}

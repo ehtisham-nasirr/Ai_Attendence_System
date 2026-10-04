@@ -3,41 +3,51 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Theme tokens (shadcn/ui, slate base, one blue accent). Components use tokens only, never raw colours. */
+/*
+ * Theme tokens (shadcn/ui). Components use tokens only, never raw colours (standards/07).
+ * Light (default): warm white / cream surfaces, warm-grey borders, near-black warm slate text and one
+ * deep corporate-blue accent (§13 "one accent colour"). Every text pair below is >= 4.5:1 (WCAG AA),
+ * including status text on its own tinted badge; the ratios are listed in the batch log.
+ */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.208 0.042 265.755);
+  color-scheme: light;
+  --radius: 0.5rem;
+  --background: oklch(0.977 0.008 85);
+  --foreground: oklch(0.255 0.014 60);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.208 0.042 265.755);
+  --card-foreground: oklch(0.255 0.014 60);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.208 0.042 265.755);
-  --primary: oklch(0.546 0.245 262.881);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.546 0.245 262.881);
-  --sidebar: oklch(0.984 0.003 247.858);
-  --sidebar-foreground: oklch(0.208 0.042 265.755);
+  --popover-foreground: oklch(0.255 0.014 60);
+  --primary: oklch(0.42 0.115 256);
+  --primary-foreground: oklch(0.985 0.004 85);
+  --secondary: oklch(0.948 0.011 82);
+  --secondary-foreground: oklch(0.255 0.014 60);
+  --muted: oklch(0.955 0.01 82);
+  --muted-foreground: oklch(0.5 0.016 62);
+  --accent: oklch(0.945 0.013 82);
+  --accent-foreground: oklch(0.255 0.014 60);
+  --destructive: oklch(0.52 0.19 27);
+  --border: oklch(0.905 0.012 80);
+  --input: oklch(0.84 0.014 78);
+  --ring: oklch(0.5 0.12 256);
+  --sidebar: oklch(0.952 0.014 82);
+  --sidebar-foreground: oklch(0.34 0.016 60);
+  --sidebar-primary: oklch(0.42 0.115 256);
+  --sidebar-accent: oklch(1 0 0);
+  --sidebar-accent-foreground: oklch(0.38 0.11 256);
+  --sidebar-border: oklch(0.89 0.014 80);
   /* Attendance / health status colours (always paired with a text label). */
-  --status-ok: oklch(0.627 0.17 149.214);
-  --status-warn: oklch(0.705 0.16 70.08);
-  --status-bad: oklch(0.577 0.245 27.325);
-  --status-info: oklch(0.546 0.245 262.881);
-  --status-neutral: oklch(0.554 0.046 257.417);
-  --status-leave: oklch(0.558 0.21 292.717);
-  --chart-1: oklch(0.546 0.245 262.881);
-  --chart-2: oklch(0.627 0.17 149.214);
-  --chart-3: oklch(0.705 0.16 70.08);
-  --chart-4: oklch(0.577 0.245 27.325);
-  --chart-5: oklch(0.558 0.21 292.717);
+  --status-ok: oklch(0.48 0.12 150);
+  --status-warn: oklch(0.5 0.115 60);
+  --status-bad: oklch(0.52 0.19 27);
+  --status-info: oklch(0.5 0.13 250);
+  --status-neutral: oklch(0.5 0.015 62);
+  --status-leave: oklch(0.5 0.16 300);
+  --chart-1: oklch(0.45 0.12 256);
+  --chart-2: oklch(0.55 0.1 175);
+  --chart-3: oklch(0.66 0.13 70);
+  --chart-4: oklch(0.55 0.15 30);
+  --chart-5: oklch(0.52 0.12 300);
 }
 
 .dark {
@@ -61,12 +71,37 @@
   --ring: oklch(0.623 0.214 259.815);
   --sidebar: oklch(0.208 0.042 265.755);
   --sidebar-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-primary: oklch(0.623 0.214 259.815);
+  --sidebar-accent: oklch(0.279 0.041 260.031);
+  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-border: oklch(1 0 0 / 10%);
   --status-ok: oklch(0.723 0.219 149.579);
   --status-warn: oklch(0.795 0.184 86.047);
   --status-bad: oklch(0.704 0.191 22.216);
   --status-info: oklch(0.623 0.214 259.815);
   --status-neutral: oklch(0.704 0.04 256.788);
   --status-leave: oklch(0.702 0.183 293.541);
+  /* The dark theme keeps the bright chart colours it always used (they were shared with light before). */
+  --chart-1: oklch(0.546 0.245 262.881);
+  --chart-2: oklch(0.627 0.17 149.214);
+  --chart-3: oklch(0.705 0.16 70.08);
+  --chart-4: oklch(0.577 0.245 27.325);
+  --chart-5: oklch(0.558 0.21 292.717);
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+/*
+ * Type: the operating system's UI font — Segoe UI on Windows, the system font elsewhere. No web fonts
+ * are loaded (on-premise, no external requests). `text-xs` is raised from 12px to 13px so secondary
+ * text stays readable; body text is 15px.
+ */
+@theme {
+  --font-sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: calc(1.125 / 0.8125);
 }
 
 @theme inline {
@@ -94,6 +129,10 @@
   --color-ring: var(--ring);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
   --color-status-ok: var(--status-ok);
   --color-status-warn: var(--status-warn);
   --color-status-bad: var(--status-bad);
@@ -113,5 +152,7 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    font-size: 0.9375rem;
+    line-height: 1.5;
   }
 }

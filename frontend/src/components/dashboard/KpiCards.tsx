@@ -37,7 +37,7 @@ export function KpiCards({ summary }: { summary: DashboardSummary | undefined })
       {kpis.map(({ label, value, icon: Icon, tone, hint }) => (
         <Card key={label} className="gap-2 py-4">
           <CardContent className="px-4">
-            <div className="text-muted-foreground flex items-center justify-between text-sm">
+            <div className="text-muted-foreground flex items-center justify-between text-sm font-medium">
               {label}
               <Icon className={cn("size-4", tone)} aria-hidden />
             </div>

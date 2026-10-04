@@ -22,9 +22,9 @@ export function DepartmentAttendanceChart({ data }: { data: DepartmentCount[] })
               <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={12} stroke="var(--muted-foreground)" />
               <Tooltip
                 cursor={{ fill: "var(--muted)" }}
-                contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8 }}
+                contentStyle={{ background: "var(--popover)", color: "var(--popover-foreground)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13 }}
               />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: 13 }} />
               <Bar dataKey="present" name="Present" stackId="a" fill="var(--status-ok)" isAnimationActive={false} />
               <Bar dataKey="late" name="Late" stackId="a" fill="var(--status-warn)" isAnimationActive={false} />
               <Bar dataKey="absent" name="Absent" stackId="a" fill="var(--status-bad)" radius={[4, 4, 0, 0]} isAnimationActive={false} />

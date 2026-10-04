@@ -57,7 +57,7 @@ export function ReportsPage() {
         actions={can(Permission.settingsManage) && <ScheduleDialog defaultType={type} />}
       />
       <Card className="mb-4">
-        <CardContent className="grid gap-3 pt-6 md:grid-cols-2 xl:grid-cols-4">
+        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-1.5 xl:col-span-2">
             <Label htmlFor="report-type">Report</Label>
             <Select value={type} onValueChange={(value) => url.set({ type: value, run: null })}>

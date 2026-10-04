@@ -124,7 +124,7 @@ export function EnrollPanel({ employee }: { employee: EmployeeOut }) {
             onDrop={onDrop}
             className={cn(
               "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center text-sm",
-              dragging ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50",
+              dragging ? "border-primary bg-primary/5" : "border-input bg-card hover:bg-muted/50",
             )}
           >
             <ImagePlus className="text-muted-foreground size-8" aria-hidden />

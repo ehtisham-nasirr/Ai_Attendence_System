@@ -9,7 +9,7 @@ export interface ThemeState {
   setChoice: (choice: ThemeChoice) => void;
 }
 
-export const ThemeContext = createContext<ThemeState>({ choice: "system", theme: "light", setChoice: () => {} });
+export const ThemeContext = createContext<ThemeState>({ choice: "light", theme: "light", setChoice: () => {} });
 
 export function useTheme(): ThemeState {
   return useContext(ThemeContext);

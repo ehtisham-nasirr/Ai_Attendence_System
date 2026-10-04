@@ -70,9 +70,9 @@ export function EmployeeProfilePage() {
           className="size-16 rounded-full text-lg"
         />
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{data.full_name}</h1>
+          <h1 className="text-2xl leading-tight font-semibold">{data.full_name}</h1>
           <p className="text-muted-foreground text-sm">
-            <span className="font-mono">{data.employee_code}</span>
+            <span className="tabular-nums">{data.employee_code}</span>
             {data.department_name && ` · ${data.department_name}`}
             {data.shift_name && ` · ${data.shift_name}`}
           </p>
@@ -85,7 +85,7 @@ export function EmployeeProfilePage() {
       </div>
 
       <Tabs value={tab} onValueChange={(value) => url.set({ tab: value, month: url.get("month") })}>
-        <TabsList className="flex-wrap">
+        <TabsList className="flex-wrap group-data-[orientation=horizontal]/tabs:h-auto">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="faces">Face gallery</TabsTrigger>
           <TabsTrigger value="enroll">Enroll</TabsTrigger>
@@ -95,7 +95,7 @@ export function EmployeeProfilePage() {
 
         <TabsContent value="details" className="space-y-6">
           <Card>
-            <CardContent className="pt-6">
+            <CardContent>
               <EmployeeForm
                 key={data.id}
                 employee={data}

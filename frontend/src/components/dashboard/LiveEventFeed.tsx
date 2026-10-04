@@ -31,7 +31,7 @@ export function LiveEventFeed({
         {events.length === 0 ? (
           <EmptyState icon={Radio} title="Waiting for recognitions" description="New check-ins appear here as they happen." />
         ) : (
-          <ScrollArea className="h-80 px-4">
+          <ScrollArea className="h-80 px-4 [&_[data-radix-scroll-area-viewport]>div]:block!">
             <ul className="divide-y" aria-live="polite">
               {events.map((event) => {
                 const status = recognitionStatusLabel[event.status];
@@ -51,7 +51,7 @@ export function LiveEventFeed({
                         {event.status === "recognized" && ` · ${formatPercent(event.confidence)}`}
                       </p>
                     </div>
-                    <StatusBadge label={status.label} tone={status.tone} />
+                    <StatusBadge label={status.label} tone={status.tone} className="shrink-0" />
                   </li>
                 );
               })}

@@ -35,7 +35,7 @@ function GroupCard({ items, groups, title }: { items: SettingItem[] | undefined;
   if (!items) return <Skeleton className="h-64" />;
   return (
     <Card>
-      <CardContent className="pt-6">
+      <CardContent>
         <SettingsGroupForm key={groups.join()} items={byGroups(items, groups)} title={title} />
       </CardContent>
     </Card>
@@ -60,7 +60,7 @@ export function SettingsPage() {
         <ErrorState error={settings.error} onRetry={() => void settings.refetch()} />
       ) : (
         <Tabs value={tab} onValueChange={(value) => url.set({ tab: value })}>
-          <TabsList className="h-auto flex-wrap">
+          <TabsList className="h-auto flex-wrap group-data-[orientation=horizontal]/tabs:h-auto">
             {tabs.map((t) => (
               <TabsTrigger key={t.value} value={t.value}>
                 {t.label}

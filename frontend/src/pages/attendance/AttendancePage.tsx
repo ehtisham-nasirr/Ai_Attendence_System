@@ -46,8 +46,8 @@ export function AttendancePage() {
         cell: ({ row }) => (
           <div>
             <p className="font-medium">{row.original.employee_name}</p>
-            <p className="text-muted-foreground text-xs">
-              <span className="font-mono">{row.original.employee_code}</span>
+            <p className="text-muted-foreground text-[12px] leading-4">
+              <span className="tabular-nums">{row.original.employee_code}</span>
               {row.original.department_name && ` · ${row.original.department_name}`}
             </p>
           </div>

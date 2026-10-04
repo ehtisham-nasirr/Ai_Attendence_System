@@ -20,12 +20,12 @@ export function AppLayout() {
     <LocationFilterProvider>
       <LiveFeedProvider>
         <div className="bg-background flex min-h-screen">
-          <aside className="bg-sidebar text-sidebar-foreground sticky top-0 hidden h-screen w-60 shrink-0 flex-col gap-6 border-r p-3 lg:flex">
+          <aside className="bg-sidebar text-sidebar-foreground border-sidebar-border sticky top-0 hidden h-screen w-60 shrink-0 flex-col gap-6 border-r p-3 lg:flex">
             <Brand />
             <SidebarNav />
           </aside>
           <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-            <SheetContent side="left" className="w-64 p-3">
+            <SheetContent side="left" className="bg-sidebar text-sidebar-foreground w-64 p-3">
               <SheetHeader className="p-0">
                 <SheetTitle asChild>
                   <div>
@@ -37,7 +37,7 @@ export function AppLayout() {
             </SheetContent>
           </Sheet>
           <div className="flex min-w-0 flex-1 flex-col">
-            <header className="bg-background/95 sticky top-0 z-30 flex h-14 items-center gap-2 border-b px-4 backdrop-blur">
+            <header className="bg-card sticky top-0 z-30 flex h-14 items-center gap-2 border-b px-4 md:px-6">
               <Button
                 variant="ghost"
                 size="icon"
