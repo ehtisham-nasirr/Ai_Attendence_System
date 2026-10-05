@@ -56,6 +56,7 @@ class CameraRuntimeConfig:
     cooldown_idle_s: float
     motion_min_area_ratio: float
     peak_windows: list[dict[str, str]]
+    conflict_gap: float = 0.15
 
     @property
     def is_entrance(self) -> bool:
@@ -101,6 +102,7 @@ def build_runtime_config(
         model_name=model_name,
         match_threshold=float(threshold),
         margin=float(settings["recognition.margin"]),
+        conflict_gap=float(settings["recognition.conflict_gap"]),
         min_votes=int(settings["recognition.min_votes"]),
         best_crops=int(settings["recognition.best_crops"]),
         detector_min_score=float(settings["recognition.detector_min_score"]),

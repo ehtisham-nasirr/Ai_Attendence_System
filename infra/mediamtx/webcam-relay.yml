@@ -17,6 +17,10 @@ authInternalUsers:
         path: webcam
       - action: read
         path: webcam
+      - action: publish
+        path: webcam-gop
+      - action: read
+        path: webcam-gop
 
 api: false
 metrics: false
@@ -37,4 +41,12 @@ webrtcIPsFromInterfaces: false
 webrtcAdditionalHosts: []
 
 paths:
-  webcam: {}
+  # Browsers send a keyframe only when asked, but the engine's idle mode decodes keyframes only, so the
+  # webcam is re-encoded with one keyframe per second (GOP 1 s, standards/17 §3). Cameras read webcam-gop.
+  webcam:
+    runOnReady: >-
+      ffmpeg -hide_banner -loglevel warning -rtsp_transport tcp -i rtsp://localhost:8554/webcam
+      -an -vf scale=-2:720 -r 15 -c:v libx264 -preset ultrafast -tune zerolatency -g 15 -keyint_min 15
+      -pix_fmt yuv420p -f rtsp -rtsp_transport tcp rtsp://localhost:8554/webcam-gop
+    runOnReadyRestart: yes
+  webcam-gop: {}

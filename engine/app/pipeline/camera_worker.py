@@ -158,7 +158,11 @@ class CameraWorker:
         self.tracks = TrackManager(
             TrackRules(
                 voting=VotingRules(
-                    config.match_threshold, config.margin, config.min_votes, config.best_crops
+                    config.match_threshold,
+                    config.margin,
+                    config.min_votes,
+                    config.best_crops,
+                    config.conflict_gap,
                 ),
                 embed_after_s=config.embed_after_s,
                 track_lost_s=config.track_lost_s,

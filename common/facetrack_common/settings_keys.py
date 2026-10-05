@@ -74,6 +74,13 @@ _SPECS: list[SettingSpec] = [
         "Default cosine match threshold per embedder model (§9). A camera's own threshold overrides it.",
     ),
     _spec("recognition.margin", "recognition", 0.08, float, "Best minus second-best employee score (§9)."),
+    _spec(
+        "recognition.conflict_gap",
+        "recognition",
+        0.15,
+        float,
+        "Another employee above the threshold blocks a track only within this gap of the winner (Q66).",
+    ),
     _spec("recognition.best_crops", "recognition", 3, int, "Best crops kept and embedded per track (§10.1)."),
     _spec("recognition.min_votes", "recognition", 2, int, "Crops that must match the same employee (§10.1)."),
     _spec("recognition.detector_min_score", "recognition", 0.6, float, "Drop faces below this score."),

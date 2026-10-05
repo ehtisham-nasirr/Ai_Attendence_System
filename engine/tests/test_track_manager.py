@@ -145,7 +145,7 @@ def test_fr17_nfr2_short_track_matching_two_employees_is_still_unknown() -> None
 
 def test_fr17_nfr2_other_employee_at_threshold_in_a_non_voting_crop_is_still_unknown() -> None:
     manager = _manager()
-    [event] = _short_pending_track(manager, [[("A", 0.60)], [("B", 0.40), ("A", 0.38)]])
+    [event] = _short_pending_track(manager, [[("A", 0.60)], [("B", 0.50), ("A", 0.38)]])
     assert isinstance(event, EmitEvent) and event.status == "unknown"
 
 

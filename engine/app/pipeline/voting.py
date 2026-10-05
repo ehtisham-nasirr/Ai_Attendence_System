@@ -3,7 +3,8 @@
 A false accept is worse than a miss, so the rules are strict:
 - one crop votes for employee X only if its best score >= threshold AND best - second-best >= margin;
 - a track is confirmed only when at least `min_votes` of its `required_crops` embedded crops vote for
-  the same employee AND no crop scores any *other* employee at or above the threshold.
+  the same employee AND no crop scores any *other* employee at or above the threshold within
+  `conflict_gap` of the winner's score (Q66: 0.88 vs 0.41 is not a conflict; 0.45 vs 0.40 is).
 Threshold, margin and vote counts come from configuration and are never lowered without approval.
 """
 
@@ -21,6 +22,8 @@ class VotingRules:
     margin: float
     min_votes: int = 2
     required_crops: int = 3
+    # Another employee at or above the threshold blocks the decision only this close to the winner (Q66).
+    conflict_gap: float = 0.15
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,6 +44,22 @@ def crop_vote(matches: Sequence[MatchCandidate], rules: VotingRules) -> str | No
     return matches[0].employee_code
 
 
+def _conflicts(best_by_code: dict[str, float], winner: str, winner_score: float, rules: VotingRules) -> bool:
+    """Another employee scored at or above the threshold and within `conflict_gap` of the winner."""
+    return any(
+        code != winner and score >= rules.threshold and score > winner_score - rules.conflict_gap
+        for code, score in best_by_code.items()
+    )
+
+
+def _best_by_code(crop_matches: Sequence[Sequence[MatchCandidate]]) -> dict[str, float]:
+    best: dict[str, float] = {}
+    for matches in crop_matches:
+        for m in matches:
+            best[m.employee_code] = max(best.get(m.employee_code, -1.0), m.score)
+    return best
+
+
 def decide_track(crop_matches: Sequence[Sequence[MatchCandidate]], rules: VotingRules) -> VoteResult:
     """Decides a track from the match lists of its embedded crops."""
     best_seen = max((m[0].score for m in crop_matches if m), default=0.0)
@@ -49,9 +68,7 @@ def decide_track(crop_matches: Sequence[Sequence[MatchCandidate]], rules: Voting
 
     votes: Counter[str] = Counter()
     scores_by_code: dict[str, list[float]] = {}
-    above_threshold: set[str] = set()
     for matches in crop_matches:
-        above_threshold.update(m.employee_code for m in matches if m.score >= rules.threshold)
         code = crop_vote(matches, rules)
         if code is not None:
             votes[code] += 1
@@ -62,25 +79,31 @@ def decide_track(crop_matches: Sequence[Sequence[MatchCandidate]], rules: Voting
     ranked = votes.most_common(2)
     winner, count = ranked[0]
     tied = len(ranked) > 1 and ranked[1][1] == count
-    if count < rules.min_votes or tied or above_threshold - {winner}:
+    if count < rules.min_votes or tied:
         return VoteResult("unknown", confidence=best_seen)
     winning_scores = scores_by_code[winner]
-    return VoteResult("confirmed", winner, sum(winning_scores) / len(winning_scores))
+    winner_score = sum(winning_scores) / len(winning_scores)
+    if _conflicts(_best_by_code(crop_matches), winner, winner_score, rules):
+        return VoteResult("unknown", confidence=best_seen)
+    return VoteResult("confirmed", winner, winner_score)
 
 
 def points_to_one_employee(crop_matches: Sequence[Sequence[MatchCandidate]], rules: VotingRules) -> bool:
     """True when an UNCONFIRMED track's crops point to exactly one enrolled employee (FR-17).
 
     Strict: at least one crop votes (`crop_vote`: threshold AND margin), every voting crop votes for the
-    same employee, and no crop scores any other employee at or above the threshold. Such a track is a
+    same employee, and no crop scores another employee at or above the threshold within `conflict_gap` of
+    the voted employee's best score (Q66). Such a track is a
     known person seen too briefly to confirm, not an unknown face. This never confirms a track: that
     still needs `decide_track` (`min_votes` of `required_crops`).
     """
     voted: set[str] = set()
-    above_threshold: set[str] = set()
     for matches in crop_matches:
-        above_threshold.update(m.employee_code for m in matches if m.score >= rules.threshold)
         code = crop_vote(matches, rules)
         if code is not None:
             voted.add(code)
-    return len(voted) == 1 and above_threshold == voted
+    if len(voted) != 1:
+        return False
+    winner = next(iter(voted))
+    best = _best_by_code(crop_matches)
+    return not _conflicts(best, winner, best[winner], rules)

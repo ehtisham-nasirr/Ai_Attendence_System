@@ -79,9 +79,9 @@ services:
   # The laptop's webcam as a test camera (Q65, docs/local-development.md). Off unless asked for:
   #   docker compose --profile webcam up -d webcam-relay
   # then open http://localhost:8890/webcam/publish in Chrome on this laptop and allow the camera.
-  # A camera with the link rtsp://webcam-relay:8554/webcam then reads it like any IP camera.
+  # A camera with the link rtsp://webcam-relay:8554/webcam-gop then reads it like any IP camera.
   webcam-relay:
-    image: bluenviron/mediamtx:1.21.1
+    image: bluenviron/mediamtx:1.21.1-ffmpeg   # ffmpeg re-encodes the webcam with a 1 s GOP
     profiles: [webcam]
     volumes:
       - ./mediamtx/webcam-relay.yml:/mediamtx.yml:ro
