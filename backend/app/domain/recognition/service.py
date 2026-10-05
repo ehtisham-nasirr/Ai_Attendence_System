@@ -7,11 +7,12 @@ attendance day is recomputed from all events, so processing the same event twice
 import asyncio
 import base64
 import logging
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
+import numpy as np
 from facetrack_common.constants import (
     CRYPTO_PURPOSE_EMBEDDING,
     EnrollmentSource,
@@ -470,47 +471,133 @@ async def assign_unknown(
         )
 
     added, rejection = False, None
-    if add_to_gallery and face.snapshot_path:
-        added, rejection = await _add_snapshot_to_gallery(db, face, employee, actor, values)
+    if add_to_gallery:
+        gallery = await _add_faces_to_gallery(db, [face], employee, actor, values)
+        added, rejection = bool(gallery.added_face_ids), gallery.rejection_reason
     reloaded = await event_repo.get_unknown(db, unknown_id)
     return reloaded or face, attendance_updated, added, rejection
 
 
-async def _add_snapshot_to_gallery(
-    db: AsyncSession, face: UnknownFace, employee: Employee, actor: User, values: dict[str, Any]
-) -> tuple[bool, str | None]:
-    snapshot = await event_snapshot(face)
-    result = await engine_client.embed_photo(snapshot)  # same FR-9 gate as uploaded photos (Q27)
-    if not result.accepted or not result.embedding_encrypted or not result.embedding_dim:
-        return False, result.rejection_reason
+@dataclass
+class GalleryResult:
+    """What "Add to gallery" did with the faces of one review decision."""
+
+    added_face_ids: list[int] = field(default_factory=list)  # unknown faces now in the gallery
+    rejected: Counter[str] = field(default_factory=Counter)
+
+    @property
+    def rejection_reason(self) -> str | None:
+        """The main reason when nothing was added."""
+        if self.added_face_ids or not self.rejected:
+            return None
+        return self.rejected.most_common(1)[0][0]
+
+
+async def _add_faces_to_gallery(
+    db: AsyncSession, faces: list[UnknownFace], employee: Employee, actor: User, values: dict[str, Any]
+) -> GalleryResult:
+    """FR-27 "Add to gallery" (Q64, ADR-0007): enrolls the engine's own embedding of assigned faces as
+    "assigned photos", so the employee is matched from the cameras' own angle and distance.
+
+    These crops passed the live crop gate when the camera saw them (`recognition.min_face_width_px`,
+    `min_crop_quality`, `min_blur_variance`); the FR-9 upload gate (112 px) is for enrollment photos and
+    rejects every CCTV crop. Safety (NFR-2): at most `enrollment.assigned_per_review` faces per decision,
+    the ones closest to the decision's own centre (the most typical faces of the person the reviewer
+    chose); at most `enrollment.max_assigned_photos` assigned photos per employee; a face that scores any
+    other employee at or above the match threshold is never added. Threshold, margin and votes are
+    unchanged, and every added photo can be deleted from the employee's gallery.
+    """
+    result = GalleryResult()
+    cipher = get_cipher()
+    thresholds: dict[str, float] = values["recognition.match_thresholds"]
+    usable: list[tuple[UnknownFace, bytes, int, str]] = []
+    for face in faces:
+        token, face_dim, face_model = face.embedding_encrypted, face.embedding_dim, face.model_name
+        if not token or not face_dim or not face_model:
+            result.rejected["no_embedding"] += 1
+        elif not face.snapshot_path:
+            result.rejected["no_snapshot"] += 1
+        elif face_model not in thresholds:
+            result.rejected["unknown_model"] += 1
+        else:
+            usable.append((face, token, face_dim, face_model))
+    if not usable:
+        return result
+    # One model per decision: the gallery only compares embeddings of the same model.
+    model_name, dim = Counter((m, d) for _, _, d, m in usable).most_common(1)[0][0]
+    vectors: list[tuple[UnknownFace, bytes, np.ndarray]] = []
+    for face, token, face_dim, face_model in usable:
+        if (face_model, face_dim) != (model_name, dim):
+            result.rejected["model_mismatch"] += 1
+            continue
+        vector = cipher.decrypt_embedding(token, CRYPTO_PURPOSE_EMBEDDING, dim)
+        vectors.append((face, token, vector / max(float(np.linalg.norm(vector)), 1e-12)))
+    centre = np.mean([v for _, _, v in vectors], axis=0)
+    vectors.sort(key=lambda item: float(np.dot(item[2], centre)), reverse=True)
+
+    others = []
+    for _code, token, other_dim in await employee_repo.other_employees_embeddings(
+        db, employee.id, model_name
+    ):
+        if other_dim == dim:
+            other = cipher.decrypt_embedding(token, CRYPTO_PURPOSE_EMBEDDING, dim)
+            others.append(other / max(float(np.linalg.norm(other)), 1e-12))
+    other_matrix = np.stack(others) if others else None
+    threshold = float(thresholds[model_name])
+
     async with transaction(db):
-        active = sum(1 for f in await employee_repo.list_faces(db, employee.id) if f.is_active)
-        if active >= int(values["enrollment.max_photos"]):
-            return False, "too_many_photos"
-        image_path = storage.new_object_name(f"enroll/{employee.id}", "jpg")
-        storage.put_encrypted(image_path, snapshot)
-        db.add(
-            FaceEnrollment(
-                employee_id=employee.id,
-                image_path=image_path,
-                embedding_encrypted=base64.b64decode(result.embedding_encrypted),
-                embedding_dim=result.embedding_dim,
-                model_name=result.model_name,
-                quality_score=float(result.quality_score or 0.0),
-                source=EnrollmentSource.REVIEW,
-                is_active=True,
-            )
+        assigned_active = sum(
+            1
+            for f in await employee_repo.list_faces(db, employee.id)
+            if f.is_active and f.source == EnrollmentSource.REVIEW
         )
+        room = max(0, int(values["enrollment.max_assigned_photos"]) - assigned_active)
+        limit = min(int(values["enrollment.assigned_per_review"]), room)
+        for face, token, vector in vectors:
+            if len(result.added_face_ids) >= limit:
+                result.rejected["too_many_assigned_photos" if room <= limit else "per_review_limit"] += 1
+                continue
+            if other_matrix is not None and float(np.max(other_matrix @ vector)) >= threshold:
+                result.rejected["matches_other_employee"] += 1
+                continue
+            try:
+                snapshot = await event_snapshot(face)
+            except NotFound:
+                result.rejected["snapshot_unavailable"] += 1
+                continue
+            image_path = storage.new_object_name(f"enroll/{employee.id}", "jpg")
+            storage.put_encrypted(image_path, snapshot)
+            db.add(
+                FaceEnrollment(
+                    employee_id=employee.id,
+                    image_path=image_path,
+                    embedding_encrypted=token,
+                    embedding_dim=dim,
+                    model_name=model_name,
+                    # Not measured for review crops (they passed the live crop gate); 0 keeps them
+                    # out of the "best photo" choice for the employee's avatar.
+                    quality_score=0.0,
+                    source=EnrollmentSource.REVIEW,
+                    is_active=True,
+                )
+            )
+            result.added_face_ids.append(face.id)
         await audit.record(
             db,
             actor,
             "employee.enroll",
             "employee",
             employee.id,
-            new={"source": "review", "unknown_face_id": face.id},
+            new={
+                "source": "review",
+                "unknown_face_ids": result.added_face_ids,
+                "accepted": len(result.added_face_ids),
+                "rejected": dict(result.rejected),
+            },
         )
-    await engine_client.notify_engines("gallery_reload")
-    return True, None
+    if result.added_face_ids:
+        await engine_client.notify_engines("gallery_reload")
+    return result
 
 
 async def dismiss_unknown(db: AsyncSession, unknown_id: int, actor: User) -> UnknownFace:
@@ -532,6 +619,7 @@ class BulkReviewOutcome:
     skipped: list[tuple[int, Literal["not_found", "already_reviewed"]]] = field(default_factory=list)
     attendance_updated: bool = False
     added_to_gallery: bool = False
+    gallery_added: int = 0
     gallery_face_id: int | None = None
     gallery_rejection_reason: str | None = None
 
@@ -549,8 +637,8 @@ async def bulk_review(
     Every face gets what the per-face assign or dismiss does, all in one transaction: an assigned
     face becomes a recognised sighting of the employee and each affected attendance day is rebuilt
     once. Faces that no longer exist or are no longer pending are skipped and reported. Each face is
-    audit-logged on its own, without biometric data (standards/18). With `add_to_gallery`, only the
-    first assigned face (request order) with a snapshot is offered to the gallery (Q43).
+    audit-logged on its own, without biometric data (standards/18). With `add_to_gallery`, up to
+    `enrollment.assigned_per_review` of the assigned faces join the employee's gallery (Q64).
     """
     values = await settings_service.resolved(db)
     employee: Employee | None = None
@@ -597,17 +685,14 @@ async def bulk_review(
     outcome.processed_ids = [face.id for face in pending]
 
     if employee is not None and add_to_gallery and pending:
-        candidate = next((face for face in pending if face.snapshot_path), None)
-        if candidate is None:
-            outcome.gallery_rejection_reason = "no_snapshot"
-            return outcome
-        outcome.gallery_face_id = candidate.id
         try:
-            added, rejection = await _add_snapshot_to_gallery(db, candidate, employee, actor, values)
-        except NotFound:
-            added, rejection = False, "snapshot_unavailable"
+            gallery = await _add_faces_to_gallery(db, pending, employee, actor, values)
         except EngineUnavailable:
-            # The decisions above are committed; only the gallery step could not run.
-            added, rejection = False, "engine_unavailable"
-        outcome.added_to_gallery, outcome.gallery_rejection_reason = added, rejection
+            # The decisions above are committed; only the gallery reload could not be announced.
+            outcome.gallery_rejection_reason = "engine_unavailable"
+            return outcome
+        outcome.gallery_added = len(gallery.added_face_ids)
+        outcome.added_to_gallery = outcome.gallery_added > 0
+        outcome.gallery_face_id = gallery.added_face_ids[0] if gallery.added_face_ids else None
+        outcome.gallery_rejection_reason = gallery.rejection_reason
     return outcome

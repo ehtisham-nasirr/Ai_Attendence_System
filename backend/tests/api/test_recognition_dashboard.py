@@ -329,9 +329,11 @@ async def test_fr27_bulk_assign_and_dismiss_a_group(make_api, db: AsyncSession, 
     assert result["processed_ids"] == group_a
     assert result["skipped"] == [{"id": 999999, "reason": "not_found"}]
     assert result["attendance_updated"] is True
-    # Only one photo goes to the gallery: the first assigned face (request order) with a snapshot (Q43).
-    assert result["added_to_gallery"] is True and result["gallery_face_id"] == ids["A"][4]
-    assert fake_engine.calls == 1 and "gallery_reload" in fake_engine.notifications
+    # Q64: every assigned face with the camera's embedding and a snapshot joins the gallery (A has 3 such
+    # faces, below the 5-per-decision limit), with no FR-9 re-check by the engine.
+    assert result["added_to_gallery"] is True and result["gallery_added"] == 3
+    assert result["gallery_face_id"] in (ids["A"][0], ids["A"][2], ids["A"][4])
+    assert fake_engine.calls == 0 and "gallery_reload" in fake_engine.notifications
     assert (
         assigned.json()["message"] == "5 unknown face(s) assigned. 1 skipped (already reviewed or not found)."
     )
@@ -400,3 +402,145 @@ async def test_q59_event_log_shows_a_pruned_snapshot_as_unavailable(make_api, db
     assert (await hr.get(f"/api/v1/events/{kept.event_id}/snapshot")).status_code == 200
     missing = await hr.get(f"/api/v1/events/{pruned.event_id}/snapshot")
     assert missing.status_code == 404 and missing.json()["success"] is False
+
+
+# --------------------------------------------------------------------------- assigned photos (FR-27, Q64)
+
+
+async def _sightings_with_snapshots(
+    db: AsyncSession, camera_id: int, person: np.ndarray, count: int
+) -> list[int]:
+    from facetrack_common.models import UnknownFace
+    from sqlalchemy import select
+
+    start = datetime(2026, 10, 5, 5, 0, tzinfo=UTC)
+    before = set((await db.scalars(select(UnknownFace.id))).all())
+    for minute in range(count):
+        snapshot = f"snapshots/2026/10/05/q64-{camera_id}-{minute}.jpg"
+        storage.put_encrypted(snapshot, b"\xff\xd8synthetic")
+        vector = _sighting(person, 500 + minute)
+        await recognition.process_event(
+            db, _unknown_at(camera_id, start.replace(minute=minute), vector, snapshot)
+        )
+    return sorted(set((await db.scalars(select(UnknownFace.id))).all()) - before)
+
+
+async def _assign(api, face_ids: list[int], employee_id: int) -> dict:  # type: ignore[no-untyped-def,type-arg]
+    response = await api.post(
+        "/api/v1/unknown-faces/bulk",
+        json={"face_ids": face_ids, "action": "assign", "employee_id": employee_id, "add_to_gallery": True},
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["data"]  # type: ignore[no-any-return]
+
+
+async def test_q64_assigned_faces_join_the_gallery_with_the_cameras_embedding(
+    make_api,
+    db: AsyncSession,
+    fake_engine,  # type: ignore[no-untyped-def]
+) -> None:
+    from facetrack_common.constants import EnrollmentSource
+    from facetrack_common.models import AuditLog, FaceEnrollment, UnknownFace
+    from sqlalchemy import select
+
+    org = await make_org(db)
+    employee = await make_employee(db, org, "E1")
+    camera = await make_camera(db, org, "Reception", CameraRole.ENTRY_EXIT)
+    face_ids = await _sightings_with_snapshots(db, camera.id, _person(7), 7)
+    hr = await make_api(await make_user(db, UserRole.HR_ADMIN, "hr"))
+
+    result = await _assign(hr, face_ids, employee.id)
+    # At most 5 per decision (enrollment.assigned_per_review), all 7 faces are still assigned.
+    assert len(result["processed_ids"]) == 7
+    assert result["added_to_gallery"] is True and result["gallery_added"] == 5
+    assert result["gallery_rejection_reason"] is None
+    assert fake_engine.calls == 0 and "gallery_reload" in fake_engine.notifications
+
+    employee_id = employee.id
+    db.expire_all()
+    gallery = (
+        await db.scalars(select(FaceEnrollment).where(FaceEnrollment.employee_id == employee_id))
+    ).all()
+    assert len(gallery) == 5 and {f.source for f in gallery} == {EnrollmentSource.REVIEW}
+    assert all(
+        f.is_active and f.quality_score == 0.0 and f.image_path.startswith(f"enroll/{employee_id}/")
+        for f in gallery
+    )
+    unknown_tokens = {bytes(f.embedding_encrypted) for f in (await db.scalars(select(UnknownFace))).all()}
+    assert {bytes(f.embedding_encrypted) for f in gallery} <= unknown_tokens  # the camera's own embeddings
+    assert storage.get_decrypted(gallery[0].image_path) == b"\xff\xd8synthetic"
+    entry = (
+        await db.scalars(
+            select(AuditLog).where(
+                AuditLog.action == "employee.enroll", AuditLog.entity_id == str(employee_id)
+            )
+        )
+    ).one()
+    assert entry.new_values["source"] == "review" and entry.new_values["accepted"] == 5
+    assert entry.new_values["rejected"] == {"per_review_limit": 2}
+
+
+async def test_q64_a_face_that_matches_another_employee_never_joins_the_gallery(
+    make_api,
+    db: AsyncSession,  # type: ignore[no-untyped-def]
+) -> None:
+    from facetrack_common.constants import EnrollmentSource
+    from facetrack_common.models import FaceEnrollment
+    from sqlalchemy import select
+
+    org = await make_org(db)
+    chosen = await make_employee(db, org, "E1")
+    lookalike = await make_employee(db, org, "E2")
+    person = _person(9)
+    db.add(
+        FaceEnrollment(
+            employee_id=lookalike.id,
+            image_path="enroll/x/e2.jpg",
+            embedding_encrypted=get_cipher().encrypt_embedding(person, CRYPTO_PURPOSE_EMBEDDING),
+            embedding_dim=128,
+            model_name="sface",
+            quality_score=0.9,
+            source=EnrollmentSource.WEBCAM,
+            is_active=True,
+        )
+    )
+    await db.commit()
+    camera = await make_camera(db, org, "Reception", CameraRole.ENTRY_EXIT)
+    face_ids = await _sightings_with_snapshots(db, camera.id, person, 3)
+    hr = await make_api(await make_user(db, UserRole.HR_ADMIN, "hr"))
+
+    result = await _assign(hr, face_ids, chosen.id)
+    assert len(result["processed_ids"]) == 3  # the assignment itself is the reviewer's decision
+    assert result["added_to_gallery"] is False and result["gallery_added"] == 0
+    assert result["gallery_rejection_reason"] == "matches_other_employee"
+    chosen_id = chosen.id
+    db.expire_all()
+    assert (
+        await db.scalars(select(FaceEnrollment).where(FaceEnrollment.employee_id == chosen_id))
+    ).first() is None
+
+
+async def test_q64_assigned_photos_have_their_own_limit_per_employee(
+    make_api,
+    db: AsyncSession,  # type: ignore[no-untyped-def]
+) -> None:
+    from facetrack_common.models import FaceEnrollment, Setting
+    from sqlalchemy import func, select
+
+    org = await make_org(db)
+    employee = await make_employee(db, org, "E1")
+    db.add(Setting(key="enrollment.max_assigned_photos", value=3))
+    await db.commit()
+    camera = await make_camera(db, org, "Reception", CameraRole.ENTRY_EXIT)
+    hr = await make_api(await make_user(db, UserRole.HR_ADMIN, "hr"))
+
+    first = await _assign(hr, await _sightings_with_snapshots(db, camera.id, _person(11), 2), employee.id)
+    second = await _assign(hr, await _sightings_with_snapshots(db, camera.id, _person(11), 2), employee.id)
+    third = await _assign(hr, await _sightings_with_snapshots(db, camera.id, _person(11), 2), employee.id)
+    assert (first["gallery_added"], second["gallery_added"], third["gallery_added"]) == (2, 1, 0)
+    assert third["gallery_rejection_reason"] == "too_many_assigned_photos"
+    employee_id = employee.id
+    count = await db.scalar(
+        select(func.count()).select_from(FaceEnrollment).where(FaceEnrollment.employee_id == employee_id)
+    )
+    assert count == 3

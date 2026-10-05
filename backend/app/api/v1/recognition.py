@@ -154,8 +154,9 @@ async def bulk_review_unknown_faces(
 ) -> ApiResponse[UnknownFaceBulkResult]:
     """FR-27 for a whole group card. `assign` needs the same permission as the single assign (Admin,
     HR); `dismiss` is open to every reviewer. Faces that are gone or already reviewed are skipped and
-    listed in `skipped`; the rest are decided in one transaction. With `add_to_gallery`, only the first
-    assigned face with a snapshot is offered to the gallery, after the FR-9 checks (requires consent)."""
+    listed in `skipped`; the rest are decided in one transaction. With `add_to_gallery`, up to
+    `enrollment.assigned_per_review` of the assigned faces join the employee's gallery as assigned photos
+    (Q64, requires consent)."""
     if payload.action == "assign" and not has_permission(actor, Permission.UNKNOWN_FACES_ASSIGN):
         raise PermissionDenied()
     outcome = await service.bulk_review(
@@ -167,6 +168,7 @@ async def bulk_review_unknown_faces(
         skipped=[UnknownFaceBulkSkipped(id=face_id, reason=reason) for face_id, reason in outcome.skipped],
         attendance_updated=outcome.attendance_updated,
         added_to_gallery=outcome.added_to_gallery,
+        gallery_added=outcome.gallery_added,
         gallery_face_id=outcome.gallery_face_id,
         gallery_rejection_reason=outcome.gallery_rejection_reason,
     )
@@ -193,8 +195,8 @@ async def unknown_snapshot(unknown_id: int, db: DbDep, _: Reviewer) -> Response:
 async def assign_unknown(
     unknown_id: int, payload: UnknownFaceAssign, db: DbDep, actor: Assigner
 ) -> ApiResponse[UnknownFaceAssignResult]:
-    """FR-27: creates the attendance sighting; with `add_to_gallery` the snapshot is also enrolled after
-    the FR-9 checks (requires consent)."""
+    """FR-27: creates the attendance sighting; with `add_to_gallery` the face also joins the employee's
+    gallery as an assigned photo, with the camera's own embedding (Q64, requires consent)."""
     face, updated, added, rejection = await service.assign_unknown(
         db, unknown_id, payload.employee_id, payload.add_to_gallery, actor
     )

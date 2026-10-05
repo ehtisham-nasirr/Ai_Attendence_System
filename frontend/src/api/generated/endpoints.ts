@@ -911,8 +911,9 @@ export const listUnknownFaceGroups = (
 /**
  * FR-27 for a whole group card. `assign` needs the same permission as the single assign (Admin,
 HR); `dismiss` is open to every reviewer. Faces that are gone or already reviewed are skipped and
-listed in `skipped`; the rest are decided in one transaction. With `add_to_gallery`, only the first
-assigned face with a snapshot is offered to the gallery, after the FR-9 checks (requires consent).
+listed in `skipped`; the rest are decided in one transaction. With `add_to_gallery`, up to
+`enrollment.assigned_per_review` of the assigned faces join the employee's gallery as assigned photos
+(Q64, requires consent).
  * @summary Assign or dismiss many unknown faces at once
  */
 export const bulkReviewUnknownFaces = (
@@ -939,8 +940,8 @@ export const unknownSnapshot = (
     }
   
 /**
- * FR-27: creates the attendance sighting; with `add_to_gallery` the snapshot is also enrolled after
-the FR-9 checks (requires consent).
+ * FR-27: creates the attendance sighting; with `add_to_gallery` the face also joins the employee's
+gallery as an assigned photo, with the camera's own embedding (Q64, requires consent).
  * @summary Assign an unknown face to an employee
  */
 export const assignUnknown = (

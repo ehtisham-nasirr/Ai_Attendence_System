@@ -197,7 +197,7 @@ describe("Unknown faces screen (§13 screen 9, FR-27, Q58)", () => {
     expect(requests[0].get("camera_id")).toBe("3");
   });
 
-  it("assigns the faces the reviewer kept ticked in one request, with the gallery option", async () => {
+  it("assigns the faces the reviewer kept ticked in one request, adding to the gallery by default", async () => {
     const warning = vi.spyOn(toast, "warning");
     const requests = serveGroups(() => groupsPage([owner]));
     server.use(http.get("*/api/v1/employees", () => HttpResponse.json(page([employee()]))));
@@ -225,7 +225,8 @@ describe("Unknown faces screen (§13 screen 9, FR-27, Q58)", () => {
 
     await userEvent.click(dialog.getByRole("combobox", { name: "Employee" }));
     await userEvent.click(await screen.findByRole("option", { name: /Ayesha Khan \(E-041\)/ }));
-    await userEvent.click(dialog.getByRole("checkbox", { name: /face gallery/ }));
+    // Q64: adding to the gallery is the default; the reviewer can untick it.
+    expect(dialog.getByRole("checkbox", { name: /gallery as assigned photos/ })).toBeChecked();
     await userEvent.click(dialog.getByRole("button", { name: "Assign 28 faces" }));
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -265,7 +266,8 @@ describe("Unknown faces screen (§13 screen 9, FR-27, Q58)", () => {
     const dialog = within(await screen.findByRole("dialog"));
     await userEvent.click(dialog.getByRole("combobox", { name: "Employee" }));
     await userEvent.click(await screen.findByRole("option", { name: /Ayesha Khan/ }));
-    await userEvent.click(dialog.getByRole("checkbox", { name: /face gallery/ }));
+    // Q64: adding to the gallery is the default; the reviewer can untick it.
+    expect(dialog.getByRole("checkbox", { name: /gallery as assigned photos/ })).toBeChecked();
     await userEvent.click(dialog.getByRole("button", { name: "Assign 1 face" }));
 
     expect(await dialog.findByRole("alert")).toHaveTextContent("Record the signed consent date before enrolling faces.");

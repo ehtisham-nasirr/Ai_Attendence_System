@@ -66,8 +66,10 @@ export function useUnknownFaceActions() {
         const description = skippedDescription(result);
         if (description) toast.warning(result.message, { description });
         else toast.success(result.message);
+        const added = result.data.gallery_added ?? 0;
         const reason = result.data.gallery_rejection_reason;
-        if (reason) toast.warning(`Assigned, but not added to the gallery: ${reason.replaceAll("_", " ")}`);
+        if (added > 0) toast.success(`${added} photo(s) added to the employee's gallery as assigned photos.`);
+        else if (reason) toast.warning(`Assigned, but not added to the gallery: ${reason.replaceAll("_", " ")}`);
         void queryClient.invalidateQueries({ queryKey: ["unknown-faces"] });
         void queryClient.invalidateQueries({ queryKey: ["attendance"] });
         void queryClient.invalidateQueries({ queryKey: ["dashboard"] });

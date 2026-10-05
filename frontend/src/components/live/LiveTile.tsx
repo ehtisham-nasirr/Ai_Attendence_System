@@ -10,6 +10,9 @@ import { cameraModeLabel, cameraStatusLabel } from "@/lib/labels";
 import { startWhep, type WhepSession } from "@/lib/whep";
 import { cn } from "@/lib/utils";
 
+// Every tile has the same frame; a 4:3 or 5:4 camera is letterboxed inside it, not stretched.
+const FRAME_ASPECT = 16 / 9;
+
 /** One camera: WebRTC video via MediaMTX, overlay boxes, status. */
 export function LiveTile({
   camera,
@@ -69,9 +72,13 @@ export function LiveTile({
   const mode = liveStatus?.mode ?? camera.runtime?.mode;
   return (
     <div className="bg-card overflow-hidden rounded-lg border">
-      <div className="relative bg-black" style={{ aspectRatio: aspect }}>
+      <div className="relative flex aspect-video items-center justify-center bg-black">
         {online && !error ? (
-          <>
+          // The overlay boxes are fractions of the video picture, so they sit in a box of the video's shape.
+          <div
+            className="relative max-h-full max-w-full"
+            style={aspect >= FRAME_ASPECT ? { width: "100%", aspectRatio: aspect } : { height: "100%", aspectRatio: aspect }}
+          >
             <video
               ref={(video) => {
                 if (video && stream && video.srcObject !== stream) video.srcObject = stream;
@@ -87,7 +94,7 @@ export function LiveTile({
               }}
             />
             <DetectionOverlay cameraId={camera.id} />
-          </>
+          </div>
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-white/70">
             <VideoOff className="size-8" aria-hidden />

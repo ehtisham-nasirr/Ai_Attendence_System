@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 
 const FACES_PER_PAGE = 24;
 
-/** FR-27 for a whole group card: assign every face the reviewer kept ticked; optionally add one to the gallery. */
+/** FR-27 for a whole group card: assign every face the reviewer kept ticked; add the best ones to the gallery (Q64). */
 export function AssignDialog({ group, onClose }: { group: UnknownFaceGroupOut | null; onClose: () => void }) {
   return (
     <Dialog open={group !== null} onOpenChange={(open) => !open && onClose()}>
@@ -31,7 +31,7 @@ function AssignGroupForm({ group, onClose }: { group: UnknownFaceGroupOut; onClo
   const formId = useId();
   const { bulk } = useUnknownFaceActions();
   const [employee, setEmployee] = useState<EmployeeOption | null>(null);
-  const [addToGallery, setAddToGallery] = useState(false);
+  const [addToGallery, setAddToGallery] = useState(true);
   const [excluded, setExcluded] = useState<ReadonlySet<number>>(new Set());
   const [page, setPage] = useState(0);
   const [errors, setErrors] = useState<{ employee?: string; gallery?: string }>({});
@@ -45,7 +45,6 @@ function AssignGroupForm({ group, onClose }: { group: UnknownFaceGroupOut; onClo
   const pages = Math.max(1, Math.ceil(total / FACES_PER_PAGE));
   const start = page * FACES_PER_PAGE;
   const pageIds = group.face_ids.slice(start, start + FACES_PER_PAGE);
-  // Request order matters: the first assigned face with a snapshot is offered to the gallery.
   const selected = group.face_ids.filter((id) => !excluded.has(id));
 
   const setIncluded = (id: number, included: boolean) => {
@@ -187,8 +186,8 @@ function AssignGroupForm({ group, onClose }: { group: UnknownFaceGroupOut; onClo
             }}
           />
           <Label htmlFor={`${formId}-gallery`} className="leading-snug font-normal">
-            Add the newest ticked snapshot to the employee's face gallery (checked for quality first; needs signed
-            consent)
+            Add the best ticked faces (up to 5) to the employee's gallery as assigned photos, so the cameras
+            recognise them next time (faces that also look like another employee are skipped; needs signed consent)
           </Label>
         </div>
         {errors.gallery && (

@@ -4,7 +4,8 @@ Rules, enforced here and nowhere else:
 - Enrollment is blocked until the employee's written consent is recorded (§15).
 - Each photo is validated by content (JPEG/PNG via Pillow, size limit), re-encoded to strip EXIF,
   then checked by the engine (`/embed`: exactly one face, width, quality, blur).
-- At most `enrollment.max_photos` active photos per employee.
+- At most `enrollment.max_photos` active enrollment photos per employee. Assigned photos from unknown-face
+  review have their own limit (`enrollment.max_assigned_photos`, Q64) and do not count here.
 - A new embedding very similar to another employee's (cosine > 0.6, FR-10) produces a warning.
 - Photos are stored encrypted; embeddings stay AES-256-GCM ciphertext (ADR-0001).
 """
@@ -107,7 +108,11 @@ async def enroll_photos(
         locked = await employee_repo.get(db, employee_id, for_update=True)
         if locked is None:
             raise NotFound("Employee not found.")
-        active = sum(1 for face in await employee_repo.list_faces(db, employee_id) if face.is_active)
+        active = sum(
+            1
+            for face in await employee_repo.list_faces(db, employee_id)
+            if face.is_active and face.source != EnrollmentSource.REVIEW
+        )
         for photo in photos:
             name = photo.filename[:120]
             try:

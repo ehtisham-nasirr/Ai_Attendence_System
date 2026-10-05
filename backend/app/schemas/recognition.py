@@ -130,6 +130,9 @@ class UnknownFaceBulkResult(ApiModel):
     skipped: list[UnknownFaceBulkSkipped]
     attendance_updated: bool
     added_to_gallery: bool
-    # The face whose snapshot was offered to the gallery (the first assigned face with a snapshot).
+    # How many of the assigned faces joined the employee's gallery as assigned photos (Q64).
+    gallery_added: int = 0
+    # The first face added to the gallery.
     gallery_face_id: int | None = None
+    # Why no face was added (only set when none was).
     gallery_rejection_reason: str | None = None

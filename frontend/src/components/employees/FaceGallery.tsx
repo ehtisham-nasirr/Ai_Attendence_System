@@ -13,7 +13,7 @@ import { useFaceMutations, useFaces } from "@/hooks/useEmployees";
 import { formatDateTime, formatPercent } from "@/lib/format";
 import { showError } from "@/lib/forms";
 
-/** §13 screen 5, Face gallery tab: enrolled photos with quality score and delete. */
+/** §13 screen 5, Face gallery tab: enrollment photos and assigned camera photos (Q64), with delete. */
 export function FaceGallery({ employeeId, onEnroll }: { employeeId: number; onEnroll: () => void }) {
   const timezone = useTimezone();
   const faces = useFaces(employeeId);
@@ -41,37 +41,63 @@ export function FaceGallery({ employeeId, onEnroll }: { employeeId: number; onEn
       />
     );
   }
+  const enrolled = items.filter((face) => face.source !== "review");
+  const assigned = items.filter((face) => face.source === "review");
+  const renderFaces = (list: typeof items, label: string) => (
+    <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+      {list.map((face) => (
+        <li key={face.id} className="bg-card overflow-hidden rounded-lg border">
+          <SecureImage src={mediaUrl.face(employeeId, face.id)} alt={`${label} ${face.id}`} className="aspect-square w-full" />
+          <div className="flex items-center justify-between gap-1 p-2">
+            <div className="text-xs">
+              <p className="font-medium">
+                {face.source === "review" ? "From a camera" : `Quality ${formatPercent(face.quality_score)}`}
+              </p>
+              <p className="text-muted-foreground">
+                {face.source === "webcam" ? "Webcam" : face.source === "review" ? "Assigned" : "Upload"} ·{" "}
+                {formatDateTime(face.created_at, timezone)}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              aria-label={`Delete face photo ${face.id}`}
+              onClick={() => setPendingDelete(face.id)}
+            >
+              <Trash2 />
+            </Button>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
   return (
     <>
-      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-        {items.map((face) => (
-          <li key={face.id} className="bg-card overflow-hidden rounded-lg border">
-            <SecureImage
-              src={mediaUrl.face(employeeId, face.id)}
-              alt={`Enrolled face ${face.id}`}
-              className="aspect-square w-full"
-            />
-            <div className="flex items-center justify-between gap-1 p-2">
-              <div className="text-xs">
-                <p className="font-medium">Quality {formatPercent(face.quality_score)}</p>
-                <p className="text-muted-foreground">
-                  {face.source === "webcam" ? "Webcam" : face.source === "review" ? "From review" : "Upload"} ·{" "}
-                  {formatDateTime(face.created_at, timezone)}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                aria-label={`Delete face photo ${face.id}`}
-                onClick={() => setPendingDelete(face.id)}
-              >
-                <Trash2 />
-              </Button>
-            </div>
-          </li>
-        ))}
-      </ul>
+      <section aria-labelledby="enrollment-photos" className="space-y-2">
+        <h3 id="enrollment-photos" className="text-sm font-semibold">
+          Enrollment photos ({enrolled.length})
+        </h3>
+        {enrolled.length > 0 ? (
+          renderFaces(enrolled, "Enrolled face")
+        ) : (
+          <p className="text-muted-foreground text-sm">No enrollment photos. Use Enroll faces to add 3 to 10.</p>
+        )}
+      </section>
+      <section aria-labelledby="assigned-photos" className="mt-6 space-y-2">
+        <h3 id="assigned-photos" className="text-sm font-semibold">
+          Assigned photos ({assigned.length})
+        </h3>
+        <p className="text-muted-foreground text-xs">
+          Faces the cameras saw and a reviewer assigned to this employee (Unknown faces › Assign › Add to gallery).
+          They help recognition from the cameras&apos; angle. Delete any that show someone else.
+        </p>
+        {assigned.length > 0 ? (
+          renderFaces(assigned, "Assigned face")
+        ) : (
+          <p className="text-muted-foreground text-sm">None yet.</p>
+        )}
+      </section>
       <ConfirmDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => !open && setPendingDelete(null)}

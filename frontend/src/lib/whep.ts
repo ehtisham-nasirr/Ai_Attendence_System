@@ -44,7 +44,12 @@ export async function startWhep(
   });
   if (!response.ok) {
     pc.close();
-    throw new Error(response.status === 401 ? "Live view not authorised" : `Live view unavailable (${response.status})`);
+    if (response.status === 401) throw new Error("Live view not authorised");
+    const detail = await response.text().catch(() => "");
+    if (/codecs? not supported/i.test(detail)) {
+      throw new Error("The browser cannot play this stream's codec (often H.265). Set the camera stream to H.264.");
+    }
+    throw new Error(`Live view unavailable (${response.status})`);
   }
   await pc.setRemoteDescription({ type: "answer", sdp: await response.text() });
   const location = response.headers.get("Location");

@@ -76,6 +76,26 @@ services:
   worker: { volumes: [media:/srv/media] }
   scheduler: { volumes: [media:/srv/media] }
 
+  # The laptop's webcam as a test camera (Q65, docs/local-development.md). Off unless asked for:
+  #   docker compose --profile webcam up -d webcam-relay
+  # then open http://localhost:8890/webcam/publish in Chrome on this laptop and allow the camera.
+  # A camera with the link rtsp://webcam-relay:8554/webcam then reads it like any IP camera.
+  webcam-relay:
+    image: bluenviron/mediamtx:1.21.1
+    profiles: [webcam]
+    volumes:
+      - ./mediamtx/webcam-relay.yml:/mediamtx.yml:ro
+    environment:
+      MTX_WEBRTCADDITIONALHOSTS: ${MEDIAMTX_PUBLIC_HOST:-127.0.0.1}
+    ports:
+      - "127.0.0.1:8890:8890"
+      - "127.0.0.1:8190:8190/udp"
+    networks: [internal]
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "2" }
+
   # Backup and monitoring are for servers. On a laptop they only start with: --profile ops
   backup: { profiles: [ops] }
   prometheus: { profiles: [ops] }

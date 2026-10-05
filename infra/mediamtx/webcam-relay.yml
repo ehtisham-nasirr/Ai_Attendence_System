@@ -1,0 +1,40 @@
+# Single laptop or test machine ONLY (docs/local-development.md, Q65). Never used in production.
+#
+# Relay for the laptop's own webcam as a test camera: Chrome on this laptop publishes the webcam over
+# WebRTC with MediaMTX's built-in page http://localhost:8890/webcam/publish; the engine and the live-view
+# MediaMTX read it over RTSP (rtsp://webcam-relay:8554/webcam) on the internal Docker network only.
+# The WebRTC port is published on 127.0.0.1 only, so nobody else on the LAN can publish or watch.
+
+logLevel: info
+
+authMethod: internal
+authInternalUsers:
+  # No credentials: only this laptop reaches the publish page, only the internal network reaches RTSP.
+  - user: any
+    ips: []
+    permissions:
+      - action: publish
+        path: webcam
+      - action: read
+        path: webcam
+
+api: false
+metrics: false
+rtmp: false
+hls: false
+srt: false
+playback: false
+moq: false
+
+rtsp: true
+rtspAddress: :8554
+
+webrtc: true
+webrtcAddress: :8890
+webrtcLocalUDPAddress: :8190
+webrtcIPsFromInterfaces: false
+# Set at runtime from MEDIAMTX_PUBLIC_HOST (MTX_WEBRTCADDITIONALHOSTS): the address the browser reaches.
+webrtcAdditionalHosts: []
+
+paths:
+  webcam: {}

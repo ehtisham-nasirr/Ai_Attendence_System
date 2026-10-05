@@ -16,6 +16,7 @@ export interface UnknownFaceBulkResult {
   skipped: UnknownFaceBulkSkipped[];
   attendance_updated: boolean;
   added_to_gallery: boolean;
+  gallery_added?: number;
   gallery_face_id?: UnknownFaceBulkResultGalleryFaceId;
   gallery_rejection_reason?: UnknownFaceBulkResultGalleryRejectionReason;
 }

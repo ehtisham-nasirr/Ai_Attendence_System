@@ -101,6 +101,20 @@ _SPECS: list[SettingSpec] = [
     _spec("enrollment.min_blur_variance", "recognition", 60.0, float, "FR-9 blur gate."),
     _spec("enrollment.min_photos", "recognition", 3, int, "FR-8 minimum enrollment photos."),
     _spec("enrollment.max_photos", "recognition", 10, int, "FR-8 maximum enrollment photos."),
+    _spec(
+        "enrollment.max_assigned_photos",
+        "recognition",
+        20,
+        int,
+        "FR-27 most camera photos added from unknown-face review per employee (Q64).",
+    ),
+    _spec(
+        "enrollment.assigned_per_review",
+        "recognition",
+        5,
+        int,
+        "FR-27 most camera photos one review decision adds to the gallery (Q64).",
+    ),
     # --- engine scheduling (requirements §10.4, standards/17) ---
     _spec("engine.entrance_fps", "engine", 4.0, float, "ACTIVE detection rate for entrance cameras."),
     _spec("engine.general_fps", "engine", 1.0, float, "ACTIVE detection rate for general cameras."),

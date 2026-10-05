@@ -1986,10 +1986,12 @@ paths:
         are skipped and
 
         listed in `skipped`; the rest are decided in one transaction. With `add_to_gallery`,
-        only the first
+        up to
 
-        assigned face with a snapshot is offered to the gallery, after the FR-9 checks
-        (requires consent).'
+        `enrollment.assigned_per_review` of the assigned faces join the employee''s
+        gallery as assigned photos
+
+        (Q64, requires consent).'
       operationId: bulk_review_unknown_faces
       requestBody:
         content:
@@ -2038,9 +2040,10 @@ paths:
       - recognition
       summary: Assign an unknown face to an employee
       description: 'FR-27: creates the attendance sighting; with `add_to_gallery`
-        the snapshot is also enrolled after
+        the face also joins the employee''s
 
-        the FR-9 checks (requires consent).'
+        gallery as an assigned photo, with the camera''s own embedding (Q64, requires
+        consent).'
       operationId: assign_unknown
       parameters:
       - name: unknown_id
@@ -6514,6 +6517,10 @@ components:
         added_to_gallery:
           type: boolean
           title: Added To Gallery
+        gallery_added:
+          type: integer
+          title: Gallery Added
+          default: 0
         gallery_face_id:
           anyOf:
           - type: integer
